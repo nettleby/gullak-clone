@@ -11,6 +11,7 @@
 <?php endif; ?>
 </div>
 <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js" crossorigin="anonymous"></script>
 <script src="<?= url('assets/js/app.js') ?>"></script>
 </body>
 </html>

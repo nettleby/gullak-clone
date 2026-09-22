@@ -173,5 +173,5 @@ require __DIR__ . '/includes/header.php';
   </a>
 </div>
 
-<a class="btn btn-danger-ghost" href="<?= url('logout.php') ?>" style="display:flex"><?= lucide('log-out') ?> Log out</a>
+<a class="btn btn-danger-ghost" href="<?= url('logout.php') ?>" style="display:flex" data-confirm="Log out of your account?"><?= lucide('log-out') ?> Log out</a>
 <?php require __DIR__ . '/includes/footer.php'; ?>

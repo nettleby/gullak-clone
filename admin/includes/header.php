@@ -32,6 +32,6 @@ $navItems = [
       </a>
     <?php endforeach; ?>
     <a class="navlink" href="<?= url('admin/change-password.php') ?>"><?= lucide('key-round', 'ic-14') ?> Password</a>
-    <a class="navlink" href="<?= url('admin/logout.php') ?>" style="color:#DC2626"><?= lucide('log-out', 'ic-14') ?> Log out</a>
+    <a class="navlink" href="<?= url('admin/logout.php') ?>" style="color:#DC2626" data-confirm="Log out of the admin panel?"><?= lucide('log-out', 'ic-14') ?> Log out</a>
   </nav>
   <?= flash_render() ?>

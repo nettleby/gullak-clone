@@ -7,12 +7,106 @@ document.addEventListener('DOMContentLoaded', function () {
     try { window.lucide.createIcons(); } catch (e) { /* icons are decorative */ }
   }
 
-  /* ---------- confirm-before-submit ---------- */
+  /* ---------- themed dialogs (SweetAlert2 when available, native fallback) ---------- */
+  function mgSwal() { return (typeof window.Swal !== 'undefined' && window.Swal.fire) ? window.Swal : null; }
+
+  function mgConfirm(message) {
+    var S = mgSwal();
+    if (!S) return Promise.resolve(window.confirm(message));
+    return S.fire({
+      icon: 'warning',
+      title: 'Are you sure?',
+      text: message,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, continue',
+      cancelButtonText: 'Cancel',
+      buttonsStyling: false,
+      customClass: {
+        popup: 'swal-mg-popup', title: 'swal-mg-title', htmlContainer: 'swal-mg-text',
+        confirmButton: 'swal-mg-confirm', cancelButton: 'swal-mg-cancel', actions: 'swal-mg-actions'
+      }
+    }).then(function (r) { return !!r.isConfirmed; });
+  }
+
+  /* ---------- confirm-before-submit (async-safe) ---------- */
   document.querySelectorAll('form[data-confirm]').forEach(function (f) {
     f.addEventListener('submit', function (ev) {
-      if (!window.confirm(f.getAttribute('data-confirm'))) ev.preventDefault();
+      if (f.dataset.mgOk === '1') { f.dataset.mgOk = ''; return; }
+      var S = mgSwal();
+      if (!S) {
+        if (!window.confirm(f.getAttribute('data-confirm'))) ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      mgConfirm(f.getAttribute('data-confirm')).then(function (ok) {
+        if (!ok) return;
+        f.dataset.mgOk = '1';
+        if (typeof f.requestSubmit === 'function') { try { f.requestSubmit(); return; } catch (e) {} }
+        f.submit();
+      });
     });
   });
+
+  /* ---------- confirm-before-follow (logout links etc.) ---------- */
+  document.querySelectorAll('a[data-confirm]').forEach(function (a) {
+    a.addEventListener('click', function (ev) {
+      var href = a.getAttribute('href');
+      var S = mgSwal();
+      if (!S) {
+        if (!window.confirm(a.getAttribute('data-confirm'))) ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      mgConfirm(a.getAttribute('data-confirm')).then(function (ok) {
+        if (ok && href) window.location.href = href;
+      });
+    });
+  });
+
+  /* ---------- server flashes → SweetAlert (toast for success, modal for errors) ----------
+   * Inline .flash divs stay in the DOM as the no-JS / offline-CDN fallback and are
+   * hidden only after Swal renders them (body.mg-swal-flash).
+   * Visibility guard: JS-driven hints reuse .flash styling while hidden
+   * (e.g. buy.php #calc-lowbalance) — never pop those as modals. */
+  function mgVisible(el) {
+    if (!el || el.hasAttribute('hidden') || (el.closest && el.closest('[hidden]'))) return false;
+    try {
+      var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+    } catch (e) { /* fall through to offsetParent check */ }
+    if (typeof el.offsetParent === 'undefined') return true; // non-DOM stub (tests)
+    return el.offsetParent !== null;
+  }
+  (function mgFlash() {
+    var S = mgSwal();
+    var flashes = Array.prototype.slice.call(document.querySelectorAll('.flash'));
+    if (!S || !flashes.length) return;
+    var queue = flashes.filter(mgVisible).map(function (el) {
+      return { ok: !el.classList.contains('flash-error'), text: el.textContent.trim() };
+    }).filter(function (f) { return f.text !== ''; });
+    if (!queue.length) return;
+    document.body.classList.add('mg-swal-flash');
+    (function next(i) {
+      if (i >= queue.length) return;
+      var f = queue[i];
+      if (f.ok) {
+        S.fire({
+          toast: true, position: 'top', icon: 'success', title: f.text,
+          showConfirmButton: false, timer: 3500, timerProgressBar: true,
+          buttonsStyling: false, customClass: { popup: 'swal-mg-toast' }
+        }).then(function () { next(i + 1); });
+      } else {
+        S.fire({
+          icon: 'error', title: 'Something needs attention', text: f.text,
+          confirmButtonText: 'OK', buttonsStyling: false,
+          customClass: {
+            popup: 'swal-mg-popup', title: 'swal-mg-title', htmlContainer: 'swal-mg-text',
+            confirmButton: 'swal-mg-confirm', actions: 'swal-mg-actions'
+          }
+        }).then(function () { next(i + 1); });
+      }
+    })(0);
+  })();
 
   /* ---------- quick-amount chips:  <button class="chip" data-fill="500" data-target="#amount"> ---------- */
   document.querySelectorAll('.chip[data-fill]').forEach(function (chip) {

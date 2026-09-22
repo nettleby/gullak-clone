@@ -50,7 +50,12 @@
   CSRF on all POSTs (`csrf_field` / `admin_csrf_field`, `419` on fail).
 * Frontend: server-rendered PHP, Lucide via `unpkg lucide@0.462.0` pinned in
   `includes/footer.php` + `admin/includes/footer.php`, Chart.js CDN with offline
-  fallback. No emojis in UI.
+  fallback. Alerts via SweetAlert2 pinned `jsdelivr sweetalert2@11.14.5`
+  (both footers) with app theme in `assets/css/style.css` (`.swal-mg-*`,
+  `buttonsStyling:false`); `assets/js/app.js` + `admin/includes/footer.php`
+  bridge `data-confirm` (forms/buttons/links) and upgrade `.flash` divs
+  (toast success / modal error). No Swal = native confirm + visible flashes
+  (offline fallback). No emojis in UI.
 * SIP: poor-man's cron in `includes/bootstrap.php` (`run_due_sips` on every
   logged-in page load) + real cron `cron/sip-runner.php` (CLI only).
 
