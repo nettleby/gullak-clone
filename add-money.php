@@ -142,7 +142,7 @@ require __DIR__ . '/includes/header.php';
         <button class="btn btn-ghost" type="submit"><?= lucide('refresh-cw') ?> I paid — verify now</button>
       </form>
     </div>
-    <p class="field-hint center">Or change your mind? <a href="<?= url('add-money.php') ?>" style="color:var(--amber-700);font-weight:800">Back</a></p>
+    <p class="field-hint center">Or change your mind? <a href="<?= url('add-money.php') ?>" style="color:var(--primary);font-weight:800">Back</a></p>
   </div>
 
 <?php else: ?>

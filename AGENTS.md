@@ -68,7 +68,9 @@
   `register.php`, `logout.php`
 * Shared: `config/config.php`, `includes/bootstrap.php`, `includes/db.php`,
   `includes/auth.php`, `includes/functions.php`, `includes/header.php`,
-  `includes/footer.php`, `assets/css/style.css`, `assets/js/app.js`
+  `includes/footer.php`, `assets/css/style.css` (user app, neutral theme),
+  `assets/css/admin.css` (frozen pre-reskin copy for admin — do not restyle),
+  `assets/js/app.js`
 * API: `api/icici-callback.php`, `api/get-rates.php`
 * Cron: `cron/sip-runner.php`
 * DB: `db/schema.sql` (fresh-install truth) + `db/migrate-v2.sql`

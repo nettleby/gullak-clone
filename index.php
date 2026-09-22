@@ -90,7 +90,7 @@ $firstName = explode(' ', trim($user['name']))[0];
     <?php endif; ?>
   </div>
   <div class="btn-row" style="margin-top:14px">
-    <a class="btn btn-sm" style="background:rgba(255,255,255,.92);color:var(--amber-700);box-shadow:none" href="<?= url('buy.php?metal=gold') ?>"><?= lucide('plus') ?> Buy</a>
+    <a class="btn btn-sm" style="background:rgba(255,255,255,.92);color:var(--primary);box-shadow:none" href="<?= url('buy.php?metal=gold') ?>"><?= lucide('plus') ?> Buy</a>
     <a class="btn btn-sm" style="background:rgba(0,0,0,.18);box-shadow:none" href="<?= url('sell.php') ?>"><?= lucide('arrow-up-right') ?> Sell</a>
   </div>
 </div>

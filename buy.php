@@ -126,7 +126,7 @@ require __DIR__ . '/includes/header.php';
   <div class="kv"><span class="k">Purity</span><span class="v"><?= $metal === 'gold' ? '24K · 999.9' : '999 pure' ?></span></div>
   <div class="kv"><span class="k">Stored as</span><span class="v">Digital units in your name</span></div>
   <div class="kv"><span class="k">Sell anytime</span><span class="v">Instantly to wallet at <?= money($rates[$metal]['sell']) ?>/g</span></div>
-  <div class="kv"><span class="k">SIP available</span><span class="v"><a href="<?= url('sip.php') ?>" style="color:var(--amber-700);font-weight:900">Automate it →</a></span></div>
+  <div class="kv"><span class="k">SIP available</span><span class="v"><a href="<?= url('sip.php') ?>" style="color:var(--primary);font-weight:900">Automate it →</a></span></div>
 </div>
 
 <script>

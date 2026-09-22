@@ -136,7 +136,7 @@ require __DIR__ . '/includes/header.php';
       <button class="btn" type="submit"><?= lucide('landmark') ?> Withdraw</button>
     </div>
   </form>
-  <p class="field-hint mt8">Manage saved accounts in <a href="<?= url('settings.php#bank') ?>" style="color:var(--amber-700);font-weight:800">Settings → Bank accounts</a>.</p>
+  <p class="field-hint mt8">Manage saved accounts in <a href="<?= url('settings.php#bank') ?>" style="color:var(--primary);font-weight:800">Settings → Bank accounts</a>.</p>
 </div>
 <?php endif; ?>
 
