@@ -14,7 +14,7 @@ require __DIR__ . '/includes/header.php';
   <p class="copy-note">
     To run your account we store the name, email address and mobile number you register with, a bcrypt hash of
     your password (never the password itself), your wallet balance and metal holdings, the bank accounts you
-    choose to save, and a complete ledger of every transaction. Payment processing is handled by Razorpay; we
+    choose to save, and a complete ledger of every transaction. Payment processing is handled by ICICI Bank; we
     keep only the order identifier and amounts, never your card or UPI credentials.
   </p>
 </div>
@@ -34,7 +34,7 @@ require __DIR__ . '/includes/header.php';
   <p class="copy-note">
     The app uses a single server-side session cookie to keep you logged in. It is marked HttpOnly and
     SameSite=Lax for security. We do not use analytics, advertising or third-party tracking cookies. Fonts,
-    Chart.js, Lucide icons and the Razorpay checkout are loaded from CDNs, so those providers can observe
+    Chart.js and Lucide icons are loaded from CDNs, so those providers can observe
     standard request metadata such as your IP address.
   </p>
 </div>
@@ -42,7 +42,7 @@ require __DIR__ . '/includes/header.php';
 <div class="card">
   <div class="card-title">Sharing</div>
   <p class="copy-note">
-    Data is never sold or shared with advertisers. The only external processor is Razorpay for payments, and
+    Data is never sold or shared with advertisers. The only external processor is ICICI Bank for payments, and
     your bank details are used solely to pay out withdrawals you request. Within the platform, the
     administrator can view accounts for support, audits and payout processing.
   </p>

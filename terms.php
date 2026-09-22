@@ -42,7 +42,7 @@ require __DIR__ . '/includes/header.php';
 <div class="card">
   <div class="card-title">4. Wallet, deposits &amp; withdrawals</div>
   <p class="copy-note">
-    Wallet top-ups are processed through Razorpay and are credited only after a cryptographically verified
+    Wallet top-ups are processed through ICICI Bank and are credited only after a cryptographically verified
     payment confirmation. Withdrawal requests lock the amount immediately, are reviewed by the platform, and
     typically settle to your saved bank account within 1-2 working days of approval. Rejected requests are
     refunded to your wallet in full. The platform may impose minimums and per-transaction limits.

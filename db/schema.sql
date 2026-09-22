@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   CONSTRAINT fk_wd_bank  FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
 ) ENGINE=InnoDB;
 
--- ---------- Razorpay payment orders ----------
+-- ---------- ICICI Bank PG payment orders ----------
 CREATE TABLE IF NOT EXISTS payments (
   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id    INT UNSIGNED NOT NULL,

@@ -4,7 +4,7 @@ $user = require_login();
 
 $uid    = (int) $user['id'];
 $amount = null;
-$order  = null;   // ['order_id'=>..., 'amount'=>...] once created
+$pay    = null;   // ['merchantTxnNo'=>..., 'redirectURI'=>..., 'tranCtx'=>..., 'amount'=>...] once initiated
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_order') {
     csrf_check();
@@ -20,55 +20,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
         header('Location: ' . url('add-money.php'));
         exit;
     }
-    if (!RZP_ENABLED) {
+    if (!ICICI_ENABLED) {
         flash_set('error', 'Payments are temporarily disabled.');
         header('Location: ' . url('wallet.php'));
         exit;
     }
 
-    $res = rzp_create_order($amount);
+    $res = icici_initiate_sale($amount, ['id' => $uid, 'name' => $user['name'], 'email' => $user['email'], 'phone' => $user['phone']]);
     if (!$res['ok']) {
         flash_set('error', $res['msg']);
         header('Location: ' . url('add-money.php'));
         exit;
     }
 
-    /* remember the order — verify endpoint will match against it */
-    $st = db()->prepare('INSERT INTO payments (user_id, order_id, amount) VALUES (?,?,?)');
-    $st->execute([$uid, $res['order_id'], $amount]);
-    $order = ['order_id' => $res['order_id'], 'amount' => $amount];
+    /* remember the merchant txn — callback will match against it */
+    try {
+        $st = db()->prepare('INSERT INTO payments (user_id, order_id, amount) VALUES (?,?,?)');
+        $st->execute([$uid, $res['merchantTxnNo'], $amount]);
+    } catch (PDOException $e) {
+        // Extremely rare txn-no collision: retry once with a fresh number.
+        if ($e->getCode() === '23000') {
+            $res = icici_initiate_sale($amount, ['id' => $uid, 'name' => $user['name'], 'email' => $user['email'], 'phone' => $user['phone']]);
+            if (!$res['ok']) {
+                flash_set('error', $res['msg']);
+                header('Location: ' . url('add-money.php'));
+                exit;
+            }
+            $st = db()->prepare('INSERT INTO payments (user_id, order_id, amount) VALUES (?,?,?)');
+            $st->execute([$uid, $res['merchantTxnNo'], $amount]);
+        } else {
+            throw $e;
+        }
+    }
+    $pay = [
+        'merchantTxnNo' => $res['merchantTxnNo'],
+        'redirectURI'   => $res['redirectURI'],
+        'tranCtx'       => $res['tranCtx'],
+        'payment_url'   => $res['payment_url'],
+        'amount'        => $amount,
+    ];
 }
+
+/* Manual verify: user returns without callback (e.g. closed ICICI tab). */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify_order') {
+    csrf_check();
+    $txn = preg_replace('/[^A-Za-z0-9]/', '', (string) ($_POST['merchantTxnNo'] ?? ''));
+    if ($txn === '') {
+        flash_set('error', 'Missing transaction reference.');
+        header('Location: ' . url('add-money.php'));
+        exit;
+    }
+    $st = db()->prepare('SELECT * FROM payments WHERE order_id = ? AND user_id = ?');
+    $st->execute([$txn, $uid]);
+    $row = $st->fetch();
+    if (!$row) {
+        flash_set('error', 'Order not found for this account.');
+        header('Location: ' . url('add-money.php'));
+        exit;
+    }
+    if ($row['status'] === 'paid') {
+        flash_set('success', money((float) $row['amount']) . ' already added to your wallet.');
+        header('Location: ' . url('wallet.php'));
+        exit;
+    }
+    $chk = icici_status_check($txn, (string) ($row['payment_id'] ?? ''));
+    if (!$chk['ok']) {
+        flash_set('error', $chk['msg'] ?? 'Status check failed. Try again.');
+        header('Location: ' . url('add-money.php'));
+        exit;
+    }
+    if ($chk['status'] === 'SUC') {
+        $cr = icici_credit_wallet(db(), $uid, $txn, (string) (($chk['raw']['txnID'] ?? '') ?: ($chk['raw']['paymentID'] ?? '')));
+        if ($cr['ok']) {
+            flash_set('success', money($cr['amount']) . ($cr['already'] ? ' already' : '') . ' added to your wallet.');
+            header('Location: ' . url('wallet.php'));
+            exit;
+        }
+        flash_set('error', $cr['msg'] ?? 'Could not credit wallet.');
+    } elseif ($chk['status'] === 'REJ') {
+        db()->prepare('UPDATE payments SET status = "failed" WHERE id = ?')->execute([$row['id']]);
+        flash_set('error', 'Payment was declined. No money was added.');
+    } else {
+        flash_set('error', 'Payment is still pending at the bank. Try verifying again in a minute.');
+    }
+    header('Location: ' . url('add-money.php'));
+    exit;
+}
+
+/* Pending ICICI orders for this user (created, newest first) — for manual verify. */
+$st = db()->prepare('SELECT order_id, amount, created_at FROM payments WHERE user_id = ? AND status = "created" ORDER BY id DESC LIMIT 5');
+$st->execute([$uid]);
+$pending = $st->fetchAll();
 
 $active_title = 'wallet';
 $page_title   = 'Add money';
 require __DIR__ . '/includes/header.php';
 ?>
-<meta name="base-url" content="<?= e(BASE_URL) ?>">
 
 <div class="page-title">Add money</div>
-<p class="page-sub">Secure payment via Razorpay (test mode).</p>
+<p class="page-sub">Secure payment via ICICI Bank (test mode).</p>
 
-<?php if ($order): ?>
-  <!-- step 2: pay the created order -->
+<?php if ($pay): ?>
+  <!-- step 2: continue to the ICICI hosted page (GET redirect with tranCtx) -->
   <div class="card">
     <div class="card-title">Confirm &amp; pay</div>
-    <div class="kv"><span class="k">Amount</span><span class="v"><?= money($order['amount']) ?></span></div>
+    <div class="kv"><span class="k">Amount</span><span class="v"><?= money($pay['amount']) ?></span></div>
     <div class="kv"><span class="k">Goes to</span><span class="v">MeraGullak wallet</span></div>
-    <div class="kv"><span class="k">Order</span><span class="v mono"><?= e($order['order_id']) ?></span></div>
+    <div class="kv"><span class="k">Reference</span><span class="v mono"><?= e($pay['merchantTxnNo']) ?></span></div>
 
     <div class="mt20">
-      <input type="hidden" id="csrf-token" value="<?= e(csrf_token()) ?>">
-      <button class="btn" id="rzp-btn" onclick="rzpStart(this)"
-              data-order="<?= e($order['order_id']) ?>"
-              data-amount="<?= (int) round($order['amount'] * 100) ?>"
-              data-key="<?= e(RZP_KEY_ID) ?>"
-              data-uname="<?= e($user['name']) ?>"
-              data-uemail="<?= e($user['email']) ?>"
-              data-uphone="<?= e($user['phone']) ?>">
-        <?= lucide('lock') ?> Pay <?= money($order['amount']) ?> securely
-      </button>
+      <a class="btn" href="<?= e($pay['payment_url']) ?>"><?= lucide('lock') ?> Pay <?= money($pay['amount']) ?> via ICICI</a>
     </div>
-    <p class="field-hint center mt8">Test card: 4111 1111 1111 1111 · any future date · any CVV</p>
+    <p class="field-hint center mt8">You will be redirected to the ICICI test payment page, then back here automatically.</p>
+    <script>window.location.replace(<?= json_encode($pay['payment_url']) ?>);</script>
+    <div class="card mt14" style="box-shadow:none">
+      <div class="card-title">Didn't return automatically?</div>
+      <form method="post">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="verify_order">
+        <input type="hidden" name="merchantTxnNo" value="<?= e($pay['merchantTxnNo']) ?>">
+        <button class="btn btn-ghost" type="submit"><?= lucide('refresh-cw') ?> I paid — verify now</button>
+      </form>
+    </div>
     <p class="field-hint center">Or change your mind? <a href="<?= url('add-money.php') ?>" style="color:var(--amber-700);font-weight:800">Back</a></p>
   </div>
 
@@ -100,13 +173,34 @@ require __DIR__ . '/includes/header.php';
   </div>
 <?php endif; ?>
 
+<?php if (!$pay && $pending): ?>
 <div class="card">
-  <div class="card-title"><?= lucide('shield-check', 'ic-14') ?> Payments are powered by Razorpay · TEST MODE</div>
-  <div class="kv"><span class="k">Test card</span><span class="v">4111 1111 1111 1111</span></div>
-  <div class="kv"><span class="k">Test UPI</span><span class="v">success@razorpay</span></div>
+  <div class="card-title"><?= lucide('history', 'ic-14') ?> Pending bank payments</div>
+  <?php foreach ($pending as $p): ?>
+    <div class="kv">
+      <span class="k mono"><?= e($p['order_id']) ?> · <?= money((float) $p['amount']) ?></span>
+      <span class="v">
+        <form method="post" style="display:inline">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="verify_order">
+          <input type="hidden" name="merchantTxnNo" value="<?= e($p['order_id']) ?>">
+          <button class="btn btn-sm" type="submit">Verify</button>
+        </form>
+      </span>
+    </div>
+  <?php endforeach; ?>
+  <p class="field-hint">Use Verify after paying on the ICICI page if auto-return didn't credit you.</p>
+</div>
+<?php endif; ?>
+
+<div class="card">
+  <div class="card-title"><?= lucide('shield-check', 'ic-14') ?> Payments are powered by ICICI Bank · TEST MODE</div>
+  <div class="kv"><span class="k">Test card</span><span class="v">4761 3400 0000 0035</span></div>
+  <div class="kv"><span class="k">Expiry / CVV</span><span class="v">12/26 · 123</span></div>
+  <div class="kv"><span class="k">Card OTP</span><span class="v">123456</span></div>
+  <div class="kv"><span class="k">Test net-banking</span><span class="v">CC Avenue Test Bank</span></div>
+  <div class="kv"><span class="k">Test UPI</span><span class="v">test@ybl</span></div>
   <div class="kv"><span class="k">Wallet</span><span class="v"><?= money(wallet_balance($uid)) ?></span></div>
 </div>
 
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script src="<?= url('assets/js/checkout.js') ?>"></script>
 <?php require __DIR__ . '/includes/footer.php'; ?>

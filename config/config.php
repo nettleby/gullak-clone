@@ -16,16 +16,27 @@ define('DB_PASS', '');          // XAMPP default MySQL root password is empty
 define('APP_NAME', 'MeraGullak');
 define('APP_TAGLINE', 'Digital Gold & Silver');
 
-/* ---------- Razorpay (TEST MODE keys) ----------
- * Dashboard: https://dashboard.razorpay.com  →  Settings → API Keys
- * Test card:  4111 1111 1111 1111 | any future date | any CVV
- * Test UPI :  success@razorpay
- * NOTE: Rotate these keys before going anywhere near production,
- *       especially if you have shared them in chats/repos.
+/* ---------- ICICI Bank PG (UAT / TEST MODE) ----------
+ * Flow: server calls initiateSale (JSON + HMAC-SHA256) → user is
+ * redirected to the ICICI hosted page → ICICI redirects back to
+ * api/icici-callback.php → server verifies hash + status and credits.
+ * Test card:  4761 3400 0000 0035 | 12/26 | 123, OTP 123456, Name test
+ * Test NB  :  CC Avenue Test Bank (login / OTP 123456)
+ * Test UPI :  test@ybl
+ * NOTE: These UAT credentials were shared in chat. Rotate them in the
+ *       ICICI dashboard before any share/prod use. returnURL is derived
+ *       automatically (works on XAMPP localhost for browser testing);
+ *       override ICICI_RETURN_URL only if UAT demands a public HTTPS URL.
  */
-define('RZP_KEY_ID', 'rzp_test_TWgt0P5dQMjmMF');
-define('RZP_KEY_SECRET', 'VRRF03gIftB5pWOIbvdG1WDt');
-define('RZP_ENABLED', true);    // set false to disable Add Money while offline
+define('ICICI_MERCHANT_ID', '100000000007164');
+define('ICICI_AGGREGATOR_ID', 'A100000000007164');
+define('ICICI_SECRET_KEY', 'db06cca0-838b-4e01-8b20-6ac446ffb6bd');
+define('ICICI_INITIATE_URL', 'https://pgpayuat.icici.bank.in/tsp/pg/api/v2/initiateSale');
+define('ICICI_COMMAND_URL', 'https://pgpayuat.icici.bank.in/tsp/pg/api/command?reqType=JSON');
+define('ICICI_RETURN_URL', '');       // '' = auto-derive absolute api/icici-callback.php URL
+define('ICICI_CURRENCY', '356');      // INR numeric code
+define('ICICI_PAYTYPE', '0');         // 0 = hosted checkout (ICICI shows payment page)
+define('ICICI_ENABLED', true);        // set false to disable Add Money while offline
 
 /* ---------- Business rules (₹ / grams) ---------- */
 define('MIN_DEPOSIT', 100);        // min wallet top-up per order

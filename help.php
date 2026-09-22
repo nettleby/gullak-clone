@@ -12,7 +12,7 @@ $faqs = [
   ['badge-indian-rupee', 'How do prices work here?',
    'Rates on this platform are set manually by the team — they do not change on their own. When you buy, you pay the gold or silver "buy rate" per gram, and when you sell you receive the "sell rate", which is slightly lower. The small difference (the spread) covers storage, insurance and platform costs. Any rate change made by the team is logged, and the price chart on the home page shows the full history.'],
   ['gem', 'How do I buy?',
-   'First add money to your wallet using Razorpay (cards, UPI, net-banking). Then open the Invest tab, choose gold or silver, and enter either a rupee amount (we convert it to grams) or a weight in grams (we convert it to rupees). The metal is credited to your holdings instantly and appears in your portfolio. Purchases start from just ₹10.'],
+   'First add money to your wallet using ICICI Bank (cards, UPI, net-banking). Then open the Invest tab, choose gold or silver, and enter either a rupee amount (we convert it to grams) or a weight in grams (we convert it to rupees). The metal is credited to your holdings instantly and appears in your portfolio. Purchases start from just ₹10.'],
   ['arrow-up-right', 'How do I sell?',
    'Open the Sell screen from the Invest tab, pick the metal, and enter how many grams you want to sell — or use the 25% / 50% / 75% / Max shortcuts. The proceeds are credited to your wallet immediately at the current sell rate. From there you can withdraw to your bank account whenever you like.'],
   ['repeat', 'How does a SIP work?',

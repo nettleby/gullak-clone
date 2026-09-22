@@ -31,7 +31,12 @@ function current_user(): ?array
 function require_login(): array
 {
     if (!is_logged_in() || !current_user()) {
-        header('Location: ' . url('login.php'));
+        // Preserve destination so a genuine-expiry detour returns here after login.
+        $rel = ltrim((string) ($_SERVER['REQUEST_URI'] ?? ''), '/');
+        $base = ltrim((string) (defined('BASE_URL') ? BASE_URL : ''), '/');
+        if ($base !== '' && str_starts_with($rel, $base)) $rel = ltrim(substr($rel, strlen($base)), '/');
+        if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')) $rel = 'index.php';
+        header('Location: ' . url('login.php?tab=user&next=' . urlencode($rel)));
         exit;
     }
     return current_user();
@@ -102,15 +107,36 @@ function user_session_name(): string
     return (string) (ini_get('session.name') ?: 'PHPSESSID');
 }
 
-/** Run $fn with the admin (MGAADM) session active, then restore user session. */
+/** Run $fn with the admin (MGAADM) session active, then restore user session.
+ * The previous session is restored by its saved ID — never via cookie.
+ * (On a first visit there is no cookie yet; cookie-binding the restore
+ * would orphan the session holding the CSRF tokens just rendered.) */
 function with_admin_session(callable $fn)
 {
-    $prev = session_name();
-    swap_session(ADMIN_SESSION_NAME, admin_session_cookie_opts());
+    $prevName = session_name();
+    if ($prevName === '') $prevName = user_session_name();
+    $prevId = session_status() === PHP_SESSION_ACTIVE ? (string) session_id() : '';
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    // Open the admin session (cookie-bound: resume it when the browser has it).
+    session_id('');
+    session_name(ADMIN_SESSION_NAME);
+    if (!empty($_COOKIE[ADMIN_SESSION_NAME]) && preg_match('/^[A-Za-z0-9,-]+$/', (string) $_COOKIE[ADMIN_SESSION_NAME])) {
+        session_id((string) $_COOKIE[ADMIN_SESSION_NAME]);
+    }
+    session_start(admin_session_cookie_opts());
     try {
         return $fn();
     } finally {
-        swap_session($prev !== '' ? $prev : user_session_name(), user_session_cookie_opts());
+        session_write_close();
+        // Restore the exact previous session.
+        session_id('');
+        session_name($prevName);
+        if ($prevId !== '' && preg_match('/^[A-Za-z0-9,-]+$/', $prevId)) {
+            session_id($prevId);
+        } elseif (!empty($_COOKIE[$prevName]) && preg_match('/^[A-Za-z0-9,-]+$/', (string) $_COOKIE[$prevName])) {
+            session_id((string) $_COOKIE[$prevName]);
+        }
+        session_start(user_session_cookie_opts());
     }
 }
 

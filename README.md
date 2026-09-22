@@ -16,7 +16,7 @@ built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
 **User app** (mobile-first, Gullak-style amber UI with bottom tab bar, **Lucide icons via CDN** — no emojis anywhere in the UI)
 - Register / login (bcrypt passwords, CSRF-protected forms, session security, password show/hide + strength meter)
 - **Dashboard**: portfolio hero with P&L + privacy **hide-balance eye toggle**, active-SIP banner, quick actions, per-metal holdings, both metals' rates with 24h change badges, price trend chart (Chart.js), recent activity
-- **Wallet**: Razorpay **test-mode** top-ups with server-side signature verification, month-to-date money-in/out stats
+- **Wallet**: ICICI Bank **test-mode** top-ups with server-side verification, month-to-date money-in/out stats
 - **Buy gold & silver** by ₹ amount or grams — quick-amount chips, amount slider, live conversion, insufficient-balance hint
 - **Sell** metal back to the wallet instantly — 25/50/75/100% shortcuts + per-sale P&L estimate
 - **SIP auto-invest**: daily / weekly / monthly plans with segmented frequency picker, “start today” option, per-plan stat cards (instalments, invested, grams), pause / resume / cancel, **projection calculator** (illustrative), execution log
@@ -41,7 +41,7 @@ built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
 - One unified `transactions` ledger with signed deltas & running balances
 - `SELECT … FOR UPDATE` row locking on wallet/holdings — no double-spend
 - Idempotent payment verification (an order can credit a wallet exactly once)
-- Zero SDK dependencies — Razorpay called via REST/cURL
+- Zero SDK dependencies — ICICI Bank PG called via REST/cURL
 - Auto-detected base URL: works in a sub-folder or vhost root
 
 ---
@@ -50,7 +50,7 @@ built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
 
 - XAMPP / WAMP / LAMP with **PHP 8.0+** (needs `pdo_mysql` and `curl` — both are
   enabled by default in XAMPP) and **MySQL 5.7+ / MariaDB 10.4+**
-- Internet for the CDNs (Google Fonts, **Lucide icons**, Chart.js, Razorpay Checkout) — pages
+- Internet for the CDNs (Google Fonts, **Lucide icons**, Chart.js) — pages
   degrade gracefully offline
 
 > Icons: the UI uses [Lucide](https://lucide.dev) loaded from unpkg
@@ -81,23 +81,24 @@ built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
 
 ---
 
-## 💳 Testing payments (Razorpay TEST mode)
+## 💳 Testing payments (ICICI Bank TEST mode)
 
-Your test keys live in `config/config.php` (`RZP_KEY_ID` / `RZP_KEY_SECRET`).
+Your test credentials live in `config/config.php` (`ICICI_MERCHANT_ID` / `ICICI_SECRET_KEY`).
 
 | Method | Value |
 |---|---|
-| Test card | `4111 1111 1111 1111` · any future expiry · any CVV |
-| Test UPI (success) | `success@razorpay` |
-| Test UPI (failure) | `failure@razorpay` |
+| Test card | `4761 3400 0000 0035` · 12/26 · 123 |
+| Card OTP | `123456` |
+| Test net-banking | `CC Avenue Test Bank` (login / OTP `123456`) |
+| Test UPI | `test@ybl` |
 
-Money flow: *Add Money* → server creates an order via Razorpay REST API →
-Checkout modal opens → on success the browser posts the result to
-`api/verify-payment.php` → server verifies the **HMAC-SHA256 signature** and
+Money flow: *Add Money* → server calls ICICI `initiateSale` →
+browser redirects to the ICICI hosted page → ICICI redirects back to
+`api/icici-callback.php` → server confirms via **status query** and
 credits the wallet exactly once.
 
-> 🔑 **Rotate your test keys** from the Razorpay dashboard before sharing this
-> project anywhere, since the keys are in the code. Use **live** keys only on a
+> 🔑 **Rotate your test credentials** from the ICICI dashboard before sharing this
+> project anywhere, since the keys are in the code. Use **live** credentials only on a
 > secure server (HTTPS + `DISPLAY_ENV=false`).
 
 ## 🏷️ Setting prices
@@ -120,17 +121,17 @@ rate*; the difference is your spread. Every change is written to
 
 ```
 gullak-clone/
-├── config/config.php        ← DB creds, Razorpay keys, business rules
+├── config/config.php        ← DB creds, ICICI keys, business rules
 ├── db/schema.sql            ← full MySQL schema + seed (admin & rates)
 ├── db/migrate-v2.sql        ← one-time upgrade for v1 databases
 ├── includes/
 │   ├── bootstrap.php        ← session, requires, due-SIP trigger, BASE_URL
 │   ├── db.php               ← PDO singleton
 │   ├── auth.php             ← register/login, CSRF
-│   ├── functions.php        ← ledger, buy/sell engines, SIP runner, Razorpay, lucide()
+│   ├── functions.php        ← ledger, buy/sell engines, SIP runner, ICICI, lucide()
 │   ├── header.php/footer.php← app shell (topbar + bell + bottom tab bar)
-├── assets/                  ← style.css (Gullak theme), app.js, checkout.js
-├── api/                     ← verify-payment.php, get-rates.php (JSON)
+├── assets/                  ← style.css (Gullak theme), app.js
+├── api/                     ← icici-callback.php, get-rates.php (JSON)
 ├── cron/sip-runner.php      ← CLI SIP processor for real cron
 ├── index.php buy.php sell.php wallet.php add-money.php
 ├── sip.php withdraw.php history.php profile.php
@@ -146,14 +147,14 @@ gullak-clone/
 - `transactions` — **unified ledger**: every money/gram movement with signed
   deltas and after-snapshots (wallet + metal in one place)
 - `sip_plans` / `sip_logs` — plans + execution audit trail
-- `payments` — Razorpay order lifecycle (`created → paid/failed`), the status
+- `payments` — ICICI order lifecycle (`created → paid/failed`), the status
   flip makes crediting idempotent
 - `metal_prices` / `price_history` — current rates + full audit
 - `admins` — separate from users
 
 ## 🔒 Before going anywhere near production
 
-- [ ] Rotate Razorpay keys; use live keys only over HTTPS
+- [ ] Rotate ICICI credentials; use live credentials only over HTTPS
 - [ ] Set `DISPLAY_ENV = false` in `config/config.php`
 - [ ] Change the default admin password
 - [ ] Add rate limiting / login throttling (not included)

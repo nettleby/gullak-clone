@@ -4,7 +4,13 @@
  *     require_once __DIR__ . '/includes/bootstrap.php';
  */
 
-if (session_status() === PHP_SESSION_NONE) {
+/* SKIP_SESSION: cookie-less callers (e.g. the bank's cross-site POST to
+ * api/icici-callback.php, which never carries our cookie) must not start a
+ * session. Starting one would emit Set-Cookie for a fresh empty session and
+ * clobber the user's real session cookie in their browser — logging them
+ * out everywhere. With no session, is_logged_in() is simply false and the
+ * callback resolves the owner from the payments row instead. */
+if (!defined('SKIP_SESSION') && session_status() === PHP_SESSION_NONE) {
     session_start([
         'cookie_httponly' => true,
         'cookie_samesite' => 'Lax',

@@ -1,7 +1,7 @@
 <?php
 /**
  * Shared helpers: formatting, flash messages, rates, ledger,
- * buy/sell engines, SIP runner and the Razorpay REST call.
+ * buy/sell engines, SIP runner and the ICICI Bank PG calls.
  */
 
 /* ---------------- output & URL helpers ---------------- */
@@ -369,23 +369,113 @@ function run_due_sips(PDO $pdo, int $uid): void
     }
 }
 
-/* ---------------- Razorpay REST (no SDK needed) ---------------- */
+/* ---------------- ICICI Bank PG (no SDK, cURL JSON only) ----------------
+ * Hosted checkout (payType=0):
+ *   1. icici_initiate_sale() POSTs JSON + secureHash to initiateSale.
+ *   2. On R1000 the user is redirected to redirectURI with tranCtx.
+ *   3. ICICI redirects the browser back to api/icici-callback.php.
+ *   4. Callback hash is checked, then icici_status_check() is the
+ *      final truth before the idempotent wallet credit.
+ */
 
-/** Creates an order; returns ['ok'=>true,'order_id'=>..] or ['ok'=>false,'msg'=>..] */
-function rzp_create_order(float $amountInr): array
+function icici_return_url(): string
 {
-    $ch = curl_init('https://api.razorpay.com/v1/orders');
-    $payload = json_encode([
-        'amount'   => (int) round($amountInr * 100),   // paise
-        'currency' => 'INR',
-        'receipt'  => 'wallet_' . bin2hex(random_bytes(5)),
-    ]);
+    if (defined('ICICI_RETURN_URL') && ICICI_RETURN_URL !== '') {
+        return (string) ICICI_RETURN_URL;
+    }
+    $scheme = !empty($_SERVER['HTTPS']) ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $base = defined('BASE_URL') ? (string) BASE_URL : '';
+    return $scheme . '://' . $host . $base . '/api/icici-callback.php';
+}
+
+function icici_amount_str(float $amountInr): string
+{
+    return number_format(round($amountInr, 2), 2, '.', '');
+}
+
+function icici_txn_date(?int $ts = null): string
+{
+    return date('YmdHis', $ts ?? time());
+}
+
+/** Unique merchantTxnNo (<=20 chars, letters/digits). */
+function icici_merchant_txn_no(int $uid): string
+{
+    return 'MG' . date('ymdHis') . $uid . bin2hex(random_bytes(2));
+}
+
+/**
+ * Initiation secureHash field order (verified against the working
+ * reference implementation for this merchant):
+ * addlParam1 + addlParam2 + aggregatorID + amount + currencyCode +
+ * customerEmailID + customerMobileNo + customerName + merchantId +
+ * merchantTxnNo + payType + returnURL + transactionType + txnDate —
+ * HMAC-SHA256 with secret key, lowercase hex.
+ */
+function icici_hash_initiate(array $f): string
+{
+    $raw = (string) ($f['addlParam1'] ?? '')
+        . (string) ($f['addlParam2'] ?? '')
+        . (string) ($f['aggregatorID'] ?? '')
+        . (string) $f['amount']
+        . (string) $f['currencyCode']
+        . (string) $f['customerEmailID']
+        . (string) ($f['customerMobileNo'] ?? '')
+        . (string) ($f['customerName'] ?? '')
+        . (string) $f['merchantId']
+        . (string) $f['merchantTxnNo']
+        . (string) $f['payType']
+        . (string) $f['returnURL']
+        . (string) $f['transactionType']
+        . (string) $f['txnDate'];
+    return hash_hmac('sha256', $raw, ICICI_SECRET_KEY);
+}
+
+/**
+ * Start a hosted sale. Returns ['ok'=>true,'merchantTxnNo','redirectURI','tranCtx',...]
+ * or ['ok'=>false,'msg'=>..]. $user = ['name','email','phone'].
+ */
+function icici_initiate_sale(float $amountInr, array $user, ?string $txnNo = null): array
+{
+    if (!ICICI_ENABLED) return ['ok' => false, 'msg' => 'Payments are temporarily disabled.'];
+    $amount = icici_amount_str($amountInr);
+    if ((float) $amount <= 0) return ['ok' => false, 'msg' => 'Invalid amount.'];
+
+    $uid = (int) ($user['id'] ?? 0);
+    $merchantTxnNo = $txnNo ?: icici_merchant_txn_no($uid);
+    $returnURL = icici_return_url();
+    $txnDate = icici_txn_date();
+
+    $fields = [
+        'merchantId'      => ICICI_MERCHANT_ID,
+        'aggregatorID'    => ICICI_AGGREGATOR_ID,
+        'merchantTxnNo'   => $merchantTxnNo,
+        'amount'          => $amount,
+        'currencyCode'    => ICICI_CURRENCY,
+        'payType'         => ICICI_PAYTYPE,
+        'customerEmailID' => $user['email'] ?? 'guest@meragullak.in',
+        'customerName'    => mb_substr($user['name'] ?? 'MeraGullak User', 0, 45),
+        'customerMobileNo'=> preg_replace('/\D/', '', (string) ($user['phone'] ?? '')),
+        'transactionType' => 'SALE',
+        'returnURL'       => $returnURL,
+        'txnDate'         => $txnDate,
+        'addlParam1'      => 'wallet_topup',
+        'addlParam2'      => 'uid' . $uid,
+    ];
+    // UAT reference sends 10-digit mobile with 91 prefix when available
+    if ($fields['customerMobileNo'] !== '' && strlen($fields['customerMobileNo']) === 10) {
+        $fields['customerMobileNo'] = '91' . $fields['customerMobileNo'];
+    }
+    $fields['secureHash'] = icici_hash_initiate($fields);
+
+    $ch = curl_init(ICICI_INITIATE_URL);
+    $payload = json_encode($fields);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_USERPWD        => RZP_KEY_ID . ':' . RZP_KEY_SECRET,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
         CURLOPT_TIMEOUT        => 25,
     ]);
     $res  = curl_exec($ch);
@@ -394,21 +484,176 @@ function rzp_create_order(float $amountInr): array
     curl_close($ch);
 
     if ($res === false) {
-        return ['ok' => false, 'msg' => 'Could not reach Razorpay: ' . $err];
+        return ['ok' => false, 'msg' => 'Could not reach ICICI gateway: ' . $err];
     }
     $data = json_decode($res, true);
-    if ($code >= 200 && $code < 300 && !empty($data['id'])) {
-        return ['ok' => true, 'order_id' => $data['id']];
+    if (!is_array($data)) {
+        return ['ok' => false, 'msg' => 'Bad response from ICICI gateway (HTTP ' . $code . ')'];
     }
-    $msg = $data['error']['description'] ?? 'Razorpay error (HTTP ' . $code . ')';
-    return ['ok' => false, 'msg' => $msg . ' — check your API keys in config/config.php'];
+    if (($data['responseCode'] ?? '') === 'R1000' && !empty($data['redirectURI']) && !empty($data['tranCtx'])) {
+        $redirectURI = (string) $data['redirectURI'];
+        $tranCtx = (string) $data['tranCtx'];
+        return [
+            'ok' => true,
+            'merchantTxnNo' => $merchantTxnNo,
+            'redirectURI'   => $redirectURI,
+            'tranCtx'       => $tranCtx,
+            'payment_url'   => $redirectURI . '?tranCtx=' . urlencode($tranCtx),
+            'amount'        => $amount,
+            'returnURL'     => $returnURL,
+        ];
+    }
+    $msg = $data['responseDescription'] ?? ('ICICI error ' . ($data['responseCode'] ?? ('HTTP ' . $code)));
+    return ['ok' => false, 'msg' => $msg . ' — check ICICI credentials in config/config.php'];
 }
 
-/** Verify checkout signature exactly as Razorpay docs specify. */
-function rzp_verify_signature(string $orderId, string $paymentId, string $signature): bool
+/**
+ * Universal ICICI hash (official doc §2.1): sort top-level keys
+ * alphabetically, concatenate values (nested arrays JSON-encoded,
+ * null/empty skipped, secureHash excluded), HMAC-SHA256, lowercase hex.
+ */
+function icici_sorted_hash(array $fields): string
 {
-    $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, RZP_KEY_SECRET);
-    return hash_equals($expected, $signature);
+    $params = [];
+    foreach ($fields as $key => $value) {
+        if ($key === 'secureHash' || $key === 'secure_hash') continue;
+        if (is_array($value)) {
+            $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+        if ($value !== null && $value !== '') {
+            $params[$key] = (string) $value;
+        }
+    }
+    ksort($params, SORT_STRING);
+    return hash_hmac('sha256', implode('', $params), ICICI_SECRET_KEY);
+}
+
+/**
+ * Status query hash: same universal method over the exact STATUS payload
+ * (aggregatorID included). originalTxnNo = bank txnID when known, else
+ * merchantTxnNo.
+ */
+function icici_hash_status(string $merchantTxnNo, string $originalTxnNo = ''): string
+{
+    return icici_sorted_hash([
+        'merchantId'      => ICICI_MERCHANT_ID,
+        'aggregatorID'    => ICICI_AGGREGATOR_ID,
+        'merchantTxnNo'   => $merchantTxnNo,
+        'originalTxnNo'   => $originalTxnNo !== '' ? $originalTxnNo : $merchantTxnNo,
+        'transactionType' => 'STATUS',
+    ]);
+}
+
+/** Query transaction status. Returns array with at least ['ok','status','raw']. */
+function icici_status_check(string $merchantTxnNo, string $txnID = ''): array
+{
+    $payload = json_encode([
+        'merchantId'    => ICICI_MERCHANT_ID,
+        'aggregatorID'  => ICICI_AGGREGATOR_ID,
+        'merchantTxnNo' => $merchantTxnNo,
+        'originalTxnNo' => $txnID !== '' ? $txnID : $merchantTxnNo,
+        'transactionType' => 'STATUS',
+        'secureHash'    => icici_hash_status($merchantTxnNo, $txnID),
+    ]);
+    $ch = curl_init(ICICI_COMMAND_URL);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+        CURLOPT_TIMEOUT        => 25,
+    ]);
+    $res  = curl_exec($ch);
+    $err  = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($res === false) {
+        return ['ok' => false, 'msg' => 'Status check unreachable: ' . $err, 'status' => 'UNKNOWN', 'raw' => null];
+    }
+    $data = json_decode($res, true);
+    if (!is_array($data)) {
+        return ['ok' => false, 'msg' => 'Bad status response (HTTP ' . $code . ')', 'status' => 'UNKNOWN', 'raw' => $res];
+    }
+    // Normalise: UAT uses responseCode 000/0000 + status SUC for success.
+    $rc = strtoupper((string) ($data['responseCode'] ?? ''));
+    $st = strtoupper((string) ($data['status'] ?? ($data['txnStatus'] ?? '')));
+    if (in_array($rc, ['000', '0000'], true) || $st === 'SUC' || $st === 'SUCCESS') {
+        return ['ok' => true, 'status' => 'SUC', 'raw' => $data];
+    }
+    if (in_array($st, ['REJ', 'FAILED', 'FAILURE'], true) || in_array($rc, ['039'], true)) {
+        return ['ok' => true, 'status' => 'REJ', 'raw' => $data];
+    }
+    return ['ok' => true, 'status' => $st !== '' ? $st : $rc, 'raw' => $data];
+}
+
+/**
+ * Verify an ICICI callback/return payload hash (verified against the
+ * working reference implementation for this merchant):
+ * - ICICI sends the response as POST form-urlencoded data
+ * - only POST parameters count (query-string ignored)
+ * - parameter names sorted alphabetically, secureHash itself excluded
+ * - null/empty values ignored ('0' counts as a value)
+ * - values concatenated, HMAC-SHA256, case-insensitive compare.
+ */
+function icici_verify_callback_hash(array $post): bool
+{
+    $sent = trim((string) ($post['secureHash'] ?? ($post['secure_hash'] ?? '')));
+    if ($sent === '') return false;
+    $params = [];
+    foreach ($post as $key => $value) {
+        if ($key === 'secureHash' || $key === 'secure_hash') continue;
+        if (is_array($value)) $value = implode('', $value);
+        if ($value !== null && $value !== '') {
+            $params[$key] = (string) $value;
+        }
+    }
+    ksort($params, SORT_STRING);
+    $raw = implode('', $params);
+    if ($raw === '') return false;
+    $calc = hash_hmac('sha256', $raw, ICICI_SECRET_KEY);
+    return hash_equals(strtolower($calc), strtolower($sent));
+}
+
+/**
+ * Idempotent wallet credit for a verified ICICI merchantTxnNo.
+ * Looks up payments by (order_id, user_id), flips created→paid once.
+ * Returns ['ok'=>true,'already'=>bool,'amount'=>float] or ['ok'=>false,'msg'=>..].
+ */
+function icici_credit_wallet(PDO $pdo, int $uid, string $merchantTxnNo, string $bankTxnID): array
+{
+    $st = $pdo->prepare('SELECT * FROM payments WHERE order_id = ? AND user_id = ?');
+    $st->execute([$merchantTxnNo, $uid]);
+    $pay = $st->fetch();
+    if (!$pay) return ['ok' => false, 'msg' => 'Order not found for this account'];
+    if ($pay['status'] === 'paid') {
+        return ['ok' => true, 'already' => true, 'amount' => (float) $pay['amount']];
+    }
+    $opened = false;
+    if (!$pdo->inTransaction()) { $pdo->beginTransaction(); $opened = true; }
+    try {
+        $st = $pdo->prepare('UPDATE payments SET status = "paid", payment_id = ?, paid_at = NOW()
+                              WHERE id = ? AND status = "created"');
+        $st->execute([$bankTxnID !== '' ? $bankTxnID : null, $pay['id']]);
+        if ($st->rowCount() !== 1) {
+            throw new RuntimeException('Payment already processed.');
+        }
+        $amount = (float) $pay['amount'];
+        $st = $pdo->prepare('SELECT balance FROM wallets WHERE user_id = ? FOR UPDATE');
+        $st->execute([$uid]);
+        $newBal = round((float) $st->fetchColumn() + $amount, 2);
+        $pdo->prepare('UPDATE wallets SET balance = ? WHERE user_id = ?')->execute([$newBal, $uid]);
+        ledger($pdo, [
+            'user_id' => $uid, 'type' => 'deposit', 'amount' => $amount,
+            'wallet_delta' => $amount, 'wallet_after' => $newBal,
+            'note' => 'Wallet top-up via ICICI (' . $merchantTxnNo . ')',
+        ]);
+        if ($opened) $pdo->commit();
+        return ['ok' => true, 'already' => false, 'amount' => $amount];
+    } catch (Throwable $ex) {
+        if ($opened && $pdo->inTransaction()) $pdo->rollBack();
+        return ['ok' => false, 'msg' => $ex->getMessage()];
+    }
 }
 
 /* ---------------- icons (Lucide via CDN) ---------------- */

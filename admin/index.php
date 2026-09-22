@@ -36,7 +36,7 @@ require __DIR__ . '/includes/header.php';
     <div class="s">≈ <?= money($goldHeld * ($rates['gold']['sell'] ?? 0), 0) ?></div></div>
   <div class="stat"><div class="k">Silver held</div><div class="v"><?= grams_fmt($silvHeld) ?> g</div>
     <div class="s">≈ <?= money($silvHeld * ($rates['silver']['sell'] ?? 0), 0) ?></div></div>
-  <div class="stat"><div class="k">Deposited (Razorpay)</div><div class="v"><?= money($deposited, 0) ?></div>
+  <div class="stat"><div class="k">Deposited (ICICI)</div><div class="v"><?= money($deposited, 0) ?></div>
     <div class="s">total of paid orders</div></div>
   <div class="stat"><div class="k">Active SIPs</div><div class="v"><?= number_format($activeSips) ?></div>
     <div class="s">auto-invest plans running</div></div>

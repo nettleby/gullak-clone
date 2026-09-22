@@ -42,7 +42,7 @@ require __DIR__ . '/includes/header.php';
     </div>
     <div class="menu-item">
       <span class="mi-icon tone-blue"><?= lucide('credit-card') ?></span>
-      <span class="mi-body"><span class="mi-title">Razorpay payments</span><span class="mi-sub">Cards, UPI &amp; net-banking (test mode)</span></span>
+      <span class="mi-body"><span class="mi-title">ICICI Bank payments</span><span class="mi-sub">Cards, UPI &amp; net-banking (test mode)</span></span>
     </div>
     <div class="menu-item">
       <span class="mi-icon tone-slate"><?= lucide('shield-check') ?></span>

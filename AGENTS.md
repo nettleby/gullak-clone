@@ -28,9 +28,22 @@
 * Concurrency: `SELECT ... FOR UPDATE` on `wallets`/`holdings`, own-txn or
   join-caller-txn in `execute_buy` / `execute_sell`. Unified `transactions`
   ledger with signed deltas + after-snapshots.
-* Payments: Razorpay REST via cURL only (no SDK). Server-side HMAC-SHA256 verify
-  in `api/verify-payment.php`, idempotent credit via
-  `UPDATE payments ... WHERE status='created'` + `rowCount` gate.
+* Payments: ICICI Bank PG hosted checkout (`payType=0`) via cURL JSON only
+  (no SDK). `icici_initiate_sale()` → browser redirect to `redirectURI` +
+  `tranCtx` → `api/icici-callback.php` verifies + `icici_status_check()` as
+  final truth, idempotent credit via
+  `UPDATE payments ... WHERE status='created'` + `rowCount` gate
+  (`icici_credit_wallet()`). Manual Verify button covers missed callbacks.
+  Status queries hit `.../command?reqType=JSON` with the universal
+  sorted-params hash (`icici_sorted_hash()`); official doc host
+  `pgpayuat.icicibank.com` is fallback (keep `bank.in` primary — proven live).
+  Bank support: `msintegration@icici.bank.in`. Official test set: card
+  `4761 3400 0000 0035 | 12/26 | 123`, OTP `123456`, NB `CC Avenue Test Bank`,
+  UPI `test@ybl`.
+  Bank return is a cross-site POST (no session cookie): callback defines
+  `SKIP_SESSION` when the cookie is absent so PHP never emits a fresh
+  `Set-Cookie` that would clobber the user's real session; sessionless
+  returns render an inline result page, never a login redirect.
 * Sessions: user session (httponly, Lax) + separate `MGAADM` admin session.
   Unified login `login.php?tab=user|admin` swaps via `swap_session` /
   `with_admin_session` (`includes/auth.php`) so both can coexist.
@@ -50,9 +63,8 @@
   `register.php`, `logout.php`
 * Shared: `config/config.php`, `includes/bootstrap.php`, `includes/db.php`,
   `includes/auth.php`, `includes/functions.php`, `includes/header.php`,
-  `includes/footer.php`, `assets/css/style.css`, `assets/js/app.js`,
-  `assets/js/checkout.js`
-* API: `api/verify-payment.php`, `api/get-rates.php`
+  `includes/footer.php`, `assets/css/style.css`, `assets/js/app.js`
+* API: `api/icici-callback.php`, `api/get-rates.php`
 * Cron: `cron/sip-runner.php`
 * DB: `db/schema.sql` (fresh-install truth) + `db/migrate-v2.sql`
   (DEPRECATED legacy v1→v2 only, fails on fresh DBs) + new timestamped
@@ -72,7 +84,7 @@
 * `MIN_WITHDRAW 100`
 * `SIP_MIN_INR 10`, `SIP_MAX_INR 100000`, `SIP_MAX_FAILS 3`,
   `SIP_PROJ_RATE_PCT 10` (illustrative only, does not affect returns)
-* Test Razorpay keys committed in config — dev only, rotate before sharing/live.
+* Test ICICI UAT credentials committed in config — dev only, rotate before sharing/live.
   `DISPLAY_ENV=true` dev only (leaks traces). `DB root/''/gullak` XAMPP default.
   Default admin `admin / admin123` — change immediately.
 
