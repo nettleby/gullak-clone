@@ -32,6 +32,8 @@
   in `api/verify-payment.php`, idempotent credit via
   `UPDATE payments ... WHERE status='created'` + `rowCount` gate.
 * Sessions: user session (httponly, Lax) + separate `MGAADM` admin session.
+  Unified login `login.php?tab=user|admin` swaps via `swap_session` /
+  `with_admin_session` (`includes/auth.php`) so both can coexist.
   CSRF on all POSTs (`csrf_field` / `admin_csrf_field`, `419` on fail).
 * Frontend: server-rendered PHP, Lucide via `unpkg lucide@0.462.0` pinned in
   `includes/footer.php` + `admin/includes/footer.php`, Chart.js CDN with offline
@@ -44,17 +46,21 @@
 * User: `index.php` (dashboard), `buy.php`, `sell.php`, `wallet.php`,
   `add-money.php`, `sip.php`, `portfolio.php`, `withdraw.php`, `history.php`,
   `notifications.php`, `profile.php`, `settings.php`, `help.php`, `about.php`,
-  `terms.php`, `privacy.php`, `login.php`, `register.php`, `logout.php`
+  `terms.php`, `privacy.php`, `login.php` (unified User/Admin tabs `?tab=`),
+  `register.php`, `logout.php`
 * Shared: `config/config.php`, `includes/bootstrap.php`, `includes/db.php`,
   `includes/auth.php`, `includes/functions.php`, `includes/header.php`,
   `includes/footer.php`, `assets/css/style.css`, `assets/js/app.js`,
   `assets/js/checkout.js`
 * API: `api/verify-payment.php`, `api/get-rates.php`
 * Cron: `cron/sip-runner.php`
-* DB: `db/schema.sql` (+ `db/migrate-v2.sql` one-time upgrade for v1 DBs)
+* DB: `db/schema.sql` (fresh-install truth) + `db/migrate-v2.sql`
+  (DEPRECATED legacy v1→v2 only, fails on fresh DBs) + new timestamped
+  `db/YYYYMMDD-HHMM-*.sql` migrations (see §8)
 * Admin: `admin/index.php`, `admin/prices.php`, `admin/users.php`,
   `admin/user-view.php`, `admin/withdrawals.php`, `admin/sips.php`,
-  `admin/change-password.php`, `admin/login.php`, `admin/logout.php`,
+  `admin/change-password.php`, `admin/login.php` (shim → `login.php?tab=admin`),
+  `admin/logout.php`,
   `admin/includes/bootstrap.php`, `admin/includes/header.php`,
   `admin/includes/footer.php`
 
@@ -93,3 +99,18 @@
 * Verify on XAMPP PHP 8 + MySQL. Keep shared-hosting safe (no new extensions,
   no Composer, no hard-coded paths).
 * Never commit secrets, never force-push, never skip hooks unless asked.
+
+## 8. DB migrations (user runs manually in phpMyAdmin)
+
+* `db/schema.sql` = fresh-install truth only. Never assume it is already applied.
+* `db/migrate-v2.sql` = DEPRECATED, legacy v1→v2 only. Never use for new work.
+* All new DB changes ship as `db/YYYYMMDD-HHMM-added_x_to_y.sql`
+  (e.g. `db/20260923-1030-added_kyc_status_to_users.sql`), one file per change,
+  run in name order via phpMyAdmin Import with `gullak` DB selected.
+* Every migration file must be **re-runnable** (safe to import twice): guard
+  each ALTER/CREATE with an `INFORMATION_SCHEMA` check + `PREPARE/EXECUTE`
+  pattern that prints `already applied: ...` instead of erroring. Start every
+  file with `USE gullak;`.
+* When a migration is added, also update `db/schema.sql` with the matching
+  definition so fresh installs never need the migration chain.
+* Never auto-run migrations from PHP. Agent creates the file, user executes it.

@@ -297,6 +297,21 @@ select.field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://ww
 
 /* ---------- auth screens ---------- */
 .auth { padding: 48px 22px 40px; min-height: 100vh; display: flex; flex-direction: column; }
+.auth-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
+}
+.auth-tab {
+  padding: 12px 10px; border-radius: 16px; text-align: center;
+  border: 1.5px solid var(--line); background: #fff;
+  font-weight: 900; font-size: 14px; color: var(--muted); cursor: pointer;
+  transition: all .15s; text-decoration: none; display: flex;
+  align-items: center; justify-content: center; gap: 6px;
+}
+.auth-tab svg { width: 16px; height: 16px; }
+.auth-tab.active {
+  background: var(--gold-grad); border-color: transparent; color: #fff;
+  box-shadow: 0 8px 18px rgba(217,119,6,.30);
+}
 .auth-logo { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 26px; }
 .auth-logo .lg { width: 76px; height: 76px; border-radius: 24px; background: var(--gold-grad); display: grid; place-items: center; font-size: 40px; box-shadow: 0 14px 30px rgba(217,119,6,.35); color: #fff; }
 .auth-logo .lg svg { width: 40px; height: 40px; }
