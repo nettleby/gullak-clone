@@ -115,7 +115,10 @@
 * One improvement at a time from the user's list. Plan first, then build.
 * Verify on XAMPP PHP 8 + MySQL. Keep shared-hosting safe (no new extensions,
   no Composer, no hard-coded paths).
-* Never commit secrets, never force-push, never skip hooks unless asked.
+* Git split: agent may run READ-ONLY git (`status`, `diff`, `log`) for
+  inspection/verification only. All mutating git (add, commit, push, pull,
+  merge, reset, branches) is the user's job — never run those, never commit
+  secrets, never force-push, never skip hooks unless asked.
 
 ## 8. DB migrations (user runs manually in phpMyAdmin)
 
