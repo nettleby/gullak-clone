@@ -1,6 +1,8 @@
 # 🐷 MeraGullak — Gullak-style Digital Gold & Silver App
 
-A full-featured clone of the [Gullak](https://gullak.app) digital gold investment platform,
+> For AI agents: see `AGENTS.md` as the spec — this file is background info only.
+
+A full-featured app inspired by the Gullak mobile-app concept for digital gold investment,
 built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
 
 > ⚠️ **Educational project.** Not affiliated with Gullak. Do not operate a real
