@@ -57,7 +57,11 @@ $history = $st->fetchAll();
 $page_title = 'Prices';
 $nav = 'prices';
 require __DIR__ . '/includes/header.php';
+$view = admin_view();
 ?>
+
+<div class="page-title">Prices</div>
+<p class="page-sub">Buy/sell rates per gram + history</p>
 
 <div class="admin-card">
   <h2>Set metal rates (₹ per gram)</h2>
@@ -118,6 +122,20 @@ require __DIR__ . '/includes/header.php';
 
 <div class="admin-card">
   <h2>Recent changes</h2>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($history as $h): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $h['metal'] === 'gold' ? 'gold' : 'silver' ?>"><?= lucide($h['metal'] === 'gold' ? 'gem' : 'coins') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= $h['metal'] === 'gold' ? 'Gold' : 'Silver' ?> · buy <?= money($h['buy_rate']) ?></div>
+          <div class="li-sub">sell <?= money($h['sell_rate']) ?> · <?= e($h['recorded_by'] ?: 'system') ?> · <?= e(dt_ist($h['recorded_at'])) ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>Metal</th><th class="num">Buy rate</th><th class="num">Sell rate</th><th>Changed by</th><th>When</th></tr>
@@ -132,6 +150,7 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <?php require __DIR__ . '/includes/footer.php'; ?>

@@ -62,16 +62,53 @@ $reqs = $st->fetchAll();
 
 $pending = array_values(array_filter($reqs, fn($r) => $r['status'] === 'pending'));
 $done    = array_values(array_filter($reqs, fn($r) => $r['status'] !== 'pending'));
+$view = admin_view();
 
 $page_title = 'Withdrawals';
 $nav = 'withdrawals';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<div class="admin-card">
-  <h2>Pending withdrawals (<?= count($pending) ?>)</h2>
+<div class="page-title">Payouts</div>
+<p class="page-sub"><?= count($pending) ?> waiting · <?= count($done) ?> processed</p>
+
+<div class="card">
+  <div class="card-title">Pending (<?= count($pending) ?>)</div>
   <?php if (!$pending): ?>
-    <p class="muted">Nothing pending — all caught up.</p>
+    <div class="empty">
+      <div class="ico"><?= lucide('badge-check') ?></div>
+      <h3>All caught up</h3>
+      <p>No withdrawal requests waiting.</p>
+    </div>
+  <?php else: ?>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <?php foreach ($pending as $w): ?>
+    <div class="plan">
+      <div class="plan-top">
+        <div class="li-icon money-out"><?= lucide('landmark') ?></div>
+        <div style="flex:1;min-width:0">
+          <div class="plan-amount"><?= money($w['amount']) ?></div>
+          <div class="plan-meta"><a href="<?= url('admin/user-view.php?id=' . (int) $w['user_id']) ?>"><?= e($w['name']) ?></a> · <?= e(dt_ist($w['created_at'])) ?></div>
+        </div>
+        <span class="badge badge-warning">pending</span>
+      </div>
+      <div class="kv"><span class="k">Bank</span><span class="v"><?= e($w['bank_name']) ?></span></div>
+      <div class="kv"><span class="k">Account</span><span class="v"><?= e($w['holder_name']) ?> ···<?= e(substr($w['account_number'], -4)) ?></span></div>
+      <div class="kv"><span class="k">IFSC</span><span class="v mono"><?= e($w['ifsc']) ?></span></div>
+      <form method="post" class="mt8">
+        <?= admin_csrf_field() ?>
+        <input type="hidden" name="id" value="<?= (int) $w['id'] ?>">
+        <input class="field" name="note" placeholder="Note (optional)">
+        <div class="btn-row mt8">
+          <button class="btn btn-green btn-sm" name="action" value="approve" type="submit" style="width:100%">Approve</button>
+          <button class="btn btn-danger btn-sm" name="action" value="reject" type="submit" style="width:100%"
+                  data-confirm="Reject and refund <?= money($w['amount']) ?> to the user's wallet?">Reject</button>
+        </div>
+      </form>
+    </div>
+    <?php endforeach; ?>
+    <p class="field-hint">Approving marks the request as paid out — transfer manually via your bank/UPI.</p>
   <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
@@ -102,14 +139,29 @@ require __DIR__ . '/includes/header.php';
   </div>
   <p class="muted small mt8">Approving marks the request as paid out — this clone does not move real money;
      transfer manually via your bank/UPI.</p>
-  </div>
+  <?php endif; ?>
   <?php endif; ?>
 </div>
 
-<div class="admin-card">
-  <h2>Processed history</h2>
+<div class="card">
+  <div class="card-title">Processed history</div>
   <?php if (!$done): ?>
     <p class="muted">No processed requests yet.</p>
+  <?php else: ?>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($done as $w): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $w['status'] === 'approved' ? 'money-in' : 'money-out' ?>"><?= lucide('landmark') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= money($w['amount']) ?> · <?= e($w['name']) ?>
+            <span class="badge <?= $w['status'] === 'approved' ? 'badge-success' : 'badge-danger' ?>"><?= e($w['status']) ?></span></div>
+          <div class="li-sub"><?= e($w['admin_note'] ?: '—') ?> · <?= e(dt_ist($w['processed_at'])) ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
   <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
@@ -127,6 +179,7 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
   <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

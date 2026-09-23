@@ -73,55 +73,70 @@ $st = $pdo->prepare('SELECT w.*, b.bank_name, b.account_number, b.ifsc
                      WHERE w.user_id = ? ORDER BY w.id DESC LIMIT 10');
 $st->execute([$id]);
 $wds = $st->fetchAll();
+$view = admin_view();
 
 $page_title = 'User #' . $id;
 $nav = 'users';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<div class="admin-card">
-  <h2><?= e($u['name']) ?> <span class="muted small">#<?= (int) $u['id'] ?></span>
-    <span class="badge <?= $u['is_active'] ? 'badge-success' : 'badge-danger' ?>"><?= $u['is_active'] ? 'active' : 'disabled' ?></span></h2>
-  <div class="table-wrap">
-    <table class="tbl">
-      <tr><td class="muted">Email</td><td><?= e($u['email']) ?></td></tr>
-      <tr><td class="muted">Phone</td><td>+91 <?= e($u['phone']) ?></td></tr>
-      <tr><td class="muted">Joined</td><td><?= e(dt_ist($u['created_at'])) ?></td></tr>
-      <tr><td class="muted">Wallet</td><td><?= money($u['balance']) ?></td></tr>
-      <tr><td class="muted">Gold</td><td><?= grams_fmt($hold['gold']['grams']) ?> g ≈ <?= money($gVal) ?> (invested <?= money($hold['gold']['invested']) ?>)</td></tr>
-      <tr><td class="muted">Silver</td><td><?= grams_fmt($hold['silver']['grams']) ?> g ≈ <?= money($sVal) ?> (invested <?= money($hold['silver']['invested']) ?>)</td></tr>
-    </table>
-  </div>
+<div class="profile-head">
+  <div class="avatar"><?= e(mb_strtoupper(mb_substr($u['name'], 0, 1))) ?></div>
+  <div class="p-name"><?= e($u['name']) ?></div>
+  <div class="p-sub"><?= e($u['email']) ?> · +91 <?= e($u['phone']) ?></div>
+  <div><span class="p-badge"><?= lucide($u['is_active'] ? 'badge-check' : 'octagon-x', 'ic-14') ?> <?= $u['is_active'] ? 'Active' : 'Disabled' ?></span>
+  <span class="p-badge"><?= lucide('wallet', 'ic-14') ?> <?= money($u['balance']) ?></span></div>
+</div>
 
-  <div class="mt14" style="display:flex;gap:10px;flex-wrap:wrap">
-    <form method="post"><?= admin_csrf_field() ?>
+<div class="card">
+  <div class="card-title">Holdings</div>
+  <div class="kv"><span class="k"><?= lucide('gem', 'ic-14') ?> Gold</span><span class="v"><?= grams_fmt($hold['gold']['grams']) ?> g ≈ <?= money($gVal) ?></span></div>
+  <div class="kv"><span class="k"><?= lucide('coins', 'ic-14') ?> Silver</span><span class="v"><?= grams_fmt($hold['silver']['grams']) ?> g ≈ <?= money($sVal) ?></span></div>
+  <div class="kv"><span class="k">Joined</span><span class="v"><?= e(dt_ist($u['created_at'])) ?></span></div>
+  <div class="btn-row mt14">
+    <form method="post" style="width:100%"><?= admin_csrf_field() ?>
       <input type="hidden" name="action" value="toggle_active">
-      <button class="btn <?= $u['is_active'] ? 'btn-danger' : 'btn-green' ?> btn-sm" type="submit">
-        <?= $u['is_active'] ? 'Disable user' : 'Enable user' ?>
+      <button class="btn <?= $u['is_active'] ? 'btn-danger' : 'btn-green' ?> btn-sm" type="submit" style="width:100%">
+        <?= $u['is_active'] ? 'Disable' : 'Enable' ?>
       </button>
     </form>
-    <form method="post" data-confirm="Generate a new random password for this user?"><?= admin_csrf_field() ?>
+    <form method="post" style="width:100%" data-confirm="Generate a new random password for this user?"><?= admin_csrf_field() ?>
       <input type="hidden" name="action" value="reset_password">
-      <button class="btn btn-ghost btn-sm" type="submit">Reset password</button>
+      <button class="btn btn-ghost btn-sm" type="submit" style="width:100%">Reset password</button>
     </form>
   </div>
 </div>
 
-<div class="admin-card">
-  <h2>Adjust wallet (manual credit / debit)</h2>
-  <form method="post" class="inline-form">
+<div class="card">
+  <div class="card-title">Adjust wallet</div>
+  <form method="post" class="stack-form">
     <?= admin_csrf_field() ?>
     <input type="hidden" name="action" value="adjust_wallet">
-    <input class="field" name="delta" type="number" step="0.01" placeholder="e.g. 500 or -250" style="width:170px">
+    <input class="field" name="delta" type="number" step="0.01" placeholder="e.g. 500 or -250">
     <input class="field" name="note" placeholder="Reason (optional)">
-    <button class="btn btn-sm" type="submit">Apply</button>
+    <button class="btn btn-sm" type="submit" style="width:100%">Apply adjustment</button>
   </form>
-  <p class="muted small mt8">Use for support cases, refunds, promos etc. Everything is ledgered.</p>
+  <p class="field-hint">Support cases, refunds, promos — everything is ledgered.</p>
 </div>
 
 <?php if ($sips): ?>
-<div class="admin-card">
-  <h2>SIP plans</h2>
+<div class="card">
+  <div class="card-title">SIP plans</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($sips as $p): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $p['metal'] === 'gold' ? 'gold' : 'silver' ?>"><?= lucide('repeat') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= money($p['amount_inr'], 0) ?> · <?= e($p['frequency']) ?>
+            <span class="badge <?= $p['status'] === 'active' ? 'badge-success' : ($p['status'] === 'paused' ? 'badge-warning' : 'badge-muted') ?>"><?= e($p['status']) ?></span></div>
+          <div class="li-sub">next <?= e($p['next_run']) ?> · fails <?= (int) $p['failed_attempts'] ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>Metal</th><th class="num">Amount</th><th>Frequency</th><th>Status</th><th>Next run</th><th>Fails</th></tr>
@@ -137,12 +152,28 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
 <?php if ($wds): ?>
-<div class="admin-card">
-  <h2>Withdrawal requests</h2>
+<div class="card">
+  <div class="card-title">Withdrawals</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($wds as $w): ?>
+      <div class="list-item">
+        <div class="li-icon money-out"><?= lucide('landmark') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= money($w['amount']) ?>
+            <span class="badge <?= $w['status'] === 'pending' ? 'badge-warning' : ($w['status'] === 'approved' ? 'badge-success' : 'badge-danger') ?>"><?= e($w['status']) ?></span></div>
+          <div class="li-sub"><?= e($w['bank_name']) ?> ···<?= e(substr($w['account_number'], -4)) ?> · <?= e(dt_ist($w['created_at'])) ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th class="num">Amount</th><th>Bank</th><th>Status</th><th>Requested</th></tr>
@@ -156,11 +187,31 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
-<div class="admin-card">
-  <h2>Last 30 transactions</h2>
+<div class="card">
+  <div class="card-title">Last 30 transactions</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($txns as $t): [$label, $dir, $sign] = txn_label($t['type']); $wd = (float) $t['wallet_delta']; ?>
+      <div class="list-item">
+        <div class="li-icon <?= $dir === 'in' ? 'money-in' : ($dir === 'out' ? 'money-out' : 'gold') ?>">
+          <?= lucide($dir === 'in' ? 'arrow-down-left' : ($dir === 'out' ? 'arrow-up-right' : 'receipt')) ?>
+        </div>
+        <div class="li-body">
+          <div class="li-title"><?= e($label) ?></div>
+          <div class="li-sub"><?= e($t['metal'] ?: '—') ?><?= $t['grams_delta'] !== null ? ' · ' . grams_fmt($t['grams_delta']) . ' g' : '' ?> · <?= e(date('d M, H:i', strtotime($t['created_at']))) ?></div>
+        </div>
+        <div class="li-right">
+          <div class="li-amt <?= $dir ?>"><?= $wd > 0 ? '+' : ($wd < 0 ? '−' : '') ?><?= money(abs($wd)) ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>Type</th><th class="num">Wallet Δ</th><th>Metal</th><th class="num">Grams Δ</th><th class="num">Rate</th><th>Note</th><th>When</th></tr>
@@ -177,5 +228,6 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

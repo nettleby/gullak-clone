@@ -68,16 +68,18 @@
   `register.php`, `logout.php`
 * Shared: `config/config.php`, `includes/bootstrap.php`, `includes/db.php`,
   `includes/auth.php`, `includes/functions.php`, `includes/header.php`,
-  `includes/footer.php`, `assets/css/style.css` (user app, neutral theme),
-  `assets/css/admin.css` (frozen pre-reskin copy for admin — do not restyle),
-  `assets/js/app.js`
+  `includes/footer.php`, `assets/css/style.css` (user app + mobile admin shell,
+  neutral theme), `assets/js/app.js`
 * API: `api/icici-callback.php`, `api/get-rates.php`
 * Cron: `cron/sip-runner.php`
 * DB: `db/schema.sql` (fresh-install truth) + `db/migrate-v2.sql`
   (DEPRECATED legacy v1→v2 only, fails on fresh DBs) + new timestamped
   `db/YYYYMMDD-HHMM-*.sql` migrations (see §8)
-* Admin: `admin/index.php`, `admin/prices.php`, `admin/users.php`,
+* Admin (mobile app shell: dark topbar + bottom tabbar + More screen, Cards/Table
+  toggle per list via `?view=`, choice remembered in localStorage):
+  `admin/index.php`, `admin/prices.php`, `admin/users.php`,
   `admin/user-view.php`, `admin/withdrawals.php`, `admin/sips.php`,
+  `admin/more.php`,
   `admin/change-password.php`, `admin/login.php` (shim → `login.php?tab=admin`),
   `admin/logout.php`,
   `admin/includes/bootstrap.php`, `admin/includes/header.php`,

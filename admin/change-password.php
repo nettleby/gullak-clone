@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $page_title = 'Change password';
-$nav = '';
+$nav = 'more';
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="admin-card" style="max-width:480px">

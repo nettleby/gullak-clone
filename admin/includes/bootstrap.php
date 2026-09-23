@@ -69,6 +69,32 @@ function admin_csrf_field(): string
     return '<input type="hidden" name="csrf" value="' . $_SESSION['admin_csrf'] . '">';
 }
 
+/* ---------------- Cards/Table view toggle (mobile-first admin) ----------------
+ * ?view=table|card (default card). Choice persists per page in localStorage
+ * (see footer bridge); server stays stateless and bookmarkable. */
+
+function admin_view(): string
+{
+    return strtolower($_GET['view'] ?? '') === 'table' ? 'table' : 'card';
+}
+
+function admin_view_toggle(): string
+{
+    $v = admin_view();
+    $q = $_GET;
+    unset($q['view'], $q['mgview']);
+    $base = strtok($_SERVER['REQUEST_URI'] ?? '', '?') ?: '';
+    $mk = function (string $view) use ($base, $q): string {
+        $qq = $q;
+        $qq['view'] = $view;
+        return $base . '?' . http_build_query($qq);
+    };
+    return '<div class="view-toggle" data-view-toggle role="tablist" aria-label="List layout">'
+        . '<a href="' . e($mk('card')) . '" class="' . ($v === 'card' ? 'active' : '') . '">Cards</a>'
+        . '<a href="' . e($mk('table')) . '" class="' . ($v === 'table' ? 'active' : '') . '">Table</a>'
+        . '</div>';
+}
+
 function admin_csrf_check(): void
 {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;

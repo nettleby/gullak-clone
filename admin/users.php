@@ -17,19 +17,49 @@ $sql .= ' ORDER BY u.id DESC LIMIT 100';
 $st = $pdo->prepare($sql);
 $st->execute($args);
 $users = $st->fetchAll();
+$view = admin_view();
 
 $page_title = 'Users';
 $nav = 'users';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<div class="admin-card">
-  <h2>Users (<?= count($users) ?><?= $q ? ' matching "' . e($q) . '"' : '' ?>)</h2>
-  <form method="get" class="inline-form" style="margin-bottom:12px">
-    <input class="field" name="q" value="<?= e($q) ?>" placeholder="Search name, email or phone…">
-    <button class="btn btn-sm" type="submit">Search</button>
-    <?php if ($q): ?><a class="btn btn-ghost btn-sm" href="<?= url('admin/users.php') ?>">Clear</a><?php endif; ?>
+<div class="page-title">Users</div>
+<p class="page-sub"><?= count($users) ?> account<?= count($users) === 1 ? '' : 's' ?><?= $q ? ' matching "' . e($q) . '"' : '' ?></p>
+
+<div class="card">
+  <form method="get">
+    <div class="search-wrap">
+      <?= lucide('search') ?>
+      <input class="field" name="q" value="<?= e($q) ?>" placeholder="Search name, email or phone…">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-sm" type="submit" style="width:100%">Search</button>
+      <?php if ($q): ?><a class="btn btn-ghost btn-sm" href="<?= url('admin/users.php') ?>" style="width:100%">Clear</a><?php endif; ?>
+    </div>
   </form>
+</div>
+
+<div class="card">
+  <div class="card-title">Accounts</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($users as $u2): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $u2['is_active'] ? 'gold' : 'money-out' ?>"><?= lucide('user-round') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= e($u2['name']) ?>
+            <span class="badge <?= $u2['is_active'] ? 'badge-success' : 'badge-danger' ?>"><?= $u2['is_active'] ? 'active' : 'disabled' ?></span></div>
+          <div class="li-sub"><?= money($u2['balance']) ?> · <?= grams_fmt($u2['gold_g']) ?> g gold · <?= grams_fmt($u2['silver_g']) ?> g silver</div>
+        </div>
+        <div class="li-right">
+          <a class="btn btn-sm" href="<?= url('admin/user-view.php?id=' . (int) $u2['id']) ?>">Open</a>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th class="num">Wallet</th>
@@ -49,5 +79,6 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

@@ -14,20 +14,44 @@ $plans = $st->fetchAll();
 $st = $pdo->query('SELECT l.*, u.name FROM sip_logs l JOIN users u ON u.id = l.user_id
                    ORDER BY l.id DESC LIMIT 25');
 $logs = $st->fetchAll();
+$view = admin_view();
 
 $page_title = 'SIPs';
 $nav = 'sips';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<div class="stat-grid">
-  <div class="stat"><div class="k">Active</div><div class="v" style="color:#15803D"><?= number_format((int) ($stats['active'] ?? 0)) ?></div></div>
-  <div class="stat"><div class="k">Paused</div><div class="v" style="color:#B45309"><?= number_format((int) ($stats['paused'] ?? 0)) ?></div></div>
-  <div class="stat"><div class="k">Cancelled</div><div class="v"><?= number_format((int) ($stats['cancelled'] ?? 0)) ?></div></div>
+<div class="page-title">SIPs</div>
+<p class="page-sub">Auto-invest plans across users</p>
+
+<div class="mini-grid cols-2">
+  <div class="mini">
+    <div class="mk"><?= lucide('repeat') ?> Active</div>
+    <div class="mv" style="color:var(--green)"><?= number_format((int) ($stats['active'] ?? 0)) ?></div>
+  </div>
+  <div class="mini">
+    <div class="mk"><?= lucide('pause') ?> Paused</div>
+    <div class="mv" style="color:var(--gold-dark)"><?= number_format((int) ($stats['paused'] ?? 0)) ?></div>
+  </div>
 </div>
 
-<div class="admin-card">
-  <h2>All plans</h2>
+<div class="card">
+  <div class="card-title">All plans (<?= count($plans) ?>)</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($plans as $p): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $p['metal'] === 'gold' ? 'gold' : 'silver' ?>"><?= lucide($p['metal'] === 'gold' ? 'gem' : 'coins') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= money($p['amount_inr'], 0) ?> · <?= e($p['frequency']) ?> · <?= e($p['name']) ?>
+            <span class="badge <?= $p['status'] === 'active' ? 'badge-success' : ($p['status'] === 'paused' ? 'badge-warning' : 'badge-muted') ?>"><?= e($p['status']) ?></span></div>
+          <div class="li-sub">next <?= e($p['next_run']) ?> · fails <?= (int) $p['failed_attempts'] ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>#</th><th>User</th><th>Metal</th><th class="num">Instalment</th><th>Frequency</th>
@@ -47,10 +71,26 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 
-<div class="admin-card">
-  <h2>Recent runs (all users)</h2>
+<div class="card">
+  <div class="card-title">Recent runs</div>
+  <?= admin_view_toggle() ?>
+  <?php if ($view === 'card'): ?>
+    <div class="list">
+      <?php foreach ($logs as $l): ?>
+      <div class="list-item">
+        <div class="li-icon <?= $l['status'] === 'success' ? 'money-in' : 'money-out' ?>"><?= lucide('repeat') ?></div>
+        <div class="li-body">
+          <div class="li-title"><?= e($l['name']) ?> · <?= $l['amount'] !== null ? money($l['amount']) : '—' ?>
+            <span class="badge <?= $l['status'] === 'success' ? 'badge-success' : 'badge-danger' ?>"><?= e($l['status']) ?></span></div>
+          <div class="li-sub"><?= e($l['run_date']) ?><?= $l['grams'] !== null ? ' · ' . grams_fmt($l['grams']) . ' g' : '' ?><?= $l['reason'] ? ' · ' . e($l['reason']) : '' ?></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?>
   <div class="table-wrap">
     <table class="tbl">
       <tr><th>User</th><th>Date</th><th>Status</th><th class="num">Amount</th><th class="num">Grams</th><th>Reason</th></tr>
@@ -66,5 +106,6 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

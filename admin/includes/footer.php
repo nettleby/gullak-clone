@@ -1,3 +1,12 @@
+</main>
+  <nav class="tabbar tabbar-admin">
+    <?php foreach ($navItems as $key => [$href, $label, $icon]): ?>
+      <a class="tab <?= ($tabKey === $key) ? 'active' : '' ?>" href="<?= url($href) ?>">
+        <?= lucide($icon) ?>
+        <span><?= e($label) ?></span>
+      </a>
+    <?php endforeach; ?>
+  </nav>
 </div>
 <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js" crossorigin="anonymous"></script>
@@ -28,6 +37,29 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof form.requestSubmit === 'function') { try { btn ? form.requestSubmit(btn) : form.requestSubmit(); return; } catch (e) {} }
     form.submit();
   }
+  /* remembered Cards/Table choice: apply stored view once (guarded, no loops) */
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (!params.get('view') && !params.get('mgview')) {
+      var key = 'mg_admin_view_' + window.location.pathname.split('/').pop();
+      var saved = window.localStorage ? window.localStorage.getItem(key) : null;
+      if (saved === 'table' || saved === 'card') {
+        params.set('view', saved);
+        params.set('mgview', '1');
+        window.location.replace(window.location.pathname + '?' + params.toString());
+      }
+    }
+    document.querySelectorAll('[data-view-toggle] a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        try {
+          var u = new URL(a.href);
+          var v = u.searchParams.get('view');
+          var k = 'mg_admin_view_' + window.location.pathname.split('/').pop();
+          if ((v === 'table' || v === 'card') && window.localStorage) window.localStorage.setItem(k, v);
+        } catch (e) {}
+      });
+    });
+  } catch (e) {}
   document.querySelectorAll('form[data-confirm]').forEach(function (f) {
     f.addEventListener('submit', function (ev) {
       if (f.dataset.mgOk === '1') { f.dataset.mgOk = ''; return; }

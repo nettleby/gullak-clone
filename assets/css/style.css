@@ -734,3 +734,37 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .swal-mg-toast .swal2-title { font-size: 13.5px; font-weight: 700; }
 /* hide upgraded inline flashes only when Swal actually rendered them */
 body.mg-swal-flash .flash { display: none; }
+
+/* ============================================================
+   ADMIN APP (mobile-first, same neutral theme as the user app)
+   Dark topbar distinguishes the control room. Additive only —
+   no user-app rules above are modified by this section.
+   ============================================================ */
+.topbar-admin { background: #0F172A; border-bottom-color: #0F172A; }
+.topbar-admin .brand-name { color: #fff; }
+.topbar-admin .brand-mark { background: var(--gold); }
+.topbar-admin .icon-btn { background: rgba(255,255,255,.12); border-color: transparent; color: #fff; }
+.topbar-admin .icon-btn .dot-alert { border-color: #0F172A; }
+.tabbar-admin { grid-template-columns: repeat(6, 1fr); }
+.tabbar-admin .tab { font-size: 10px; }
+.tabbar-admin .tab.active::before { background: var(--gold); }
+/* Cards/Table segmented toggle */
+.view-toggle {
+  display: inline-grid; grid-auto-flow: column; gap: 4px;
+  background: #E8ECF2; border: 1px solid var(--line); border-radius: 10px; padding: 4px;
+  margin-bottom: 12px;
+}
+.view-toggle a {
+  padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 700;
+  color: var(--muted); text-decoration: none; white-space: nowrap;
+}
+.view-toggle a.active { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(15,23,42,.14); }
+/* admin stat minis: 2 columns on phones */
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px; }
+  .stat .v { font-size: 18px; }
+}
+/* admin action forms stack cleanly inside cards */
+.stack-form { display: flex; flex-direction: column; gap: 8px; }
+.stack-form .field { width: 100%; }
