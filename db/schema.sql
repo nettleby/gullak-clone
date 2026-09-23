@@ -21,13 +21,15 @@ CREATE TABLE IF NOT EXISTS users (
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   notify_email  TINYINT(1)   NOT NULL DEFAULT 1,   -- transactional email updates
   notify_sms    TINYINT(1)   NOT NULL DEFAULT 0,   -- SMS updates (off by default)
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ---------- wallets (one per user, INR balance) ----------
 CREATE TABLE IF NOT EXISTS wallets (
   user_id    INT UNSIGNED PRIMARY KEY,
   balance    DECIMAL(14,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_wallets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -38,6 +40,8 @@ CREATE TABLE IF NOT EXISTS holdings (
   metal    ENUM('gold','silver') NOT NULL,
   grams    DECIMAL(14,4) NOT NULL DEFAULT 0,
   invested DECIMAL(14,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id, metal),
   CONSTRAINT fk_holdings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -49,6 +53,7 @@ CREATE TABLE IF NOT EXISTS metal_prices (
   metal      ENUM('gold','silver') PRIMARY KEY,
   buy_rate   DECIMAL(12,2) NOT NULL,
   sell_rate  DECIMAL(12,2) NOT NULL,
+  created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by VARCHAR(50)   NULL,
   updated_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -61,6 +66,8 @@ CREATE TABLE IF NOT EXISTS price_history (
   sell_rate   DECIMAL(12,2) NOT NULL,
   recorded_by VARCHAR(50)   NULL,
   recorded_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_ph_metal_time (metal, recorded_at)
 ) ENGINE=InnoDB;
 
@@ -82,6 +89,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   rate         DECIMAL(12,2) NULL,                 -- ₹/gram rate applied
   note         VARCHAR(255) NULL,
   created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_txn_user_time (user_id, created_at),
   CONSTRAINT fk_txn_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -114,6 +122,7 @@ CREATE TABLE IF NOT EXISTS sip_logs (
   rate       DECIMAL(12,2) NULL,
   reason     VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_siplog_sip (sip_id, run_date),
   CONSTRAINT fk_siplog_sip FOREIGN KEY (sip_id) REFERENCES sip_plans(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -127,6 +136,7 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   ifsc           VARCHAR(11) NOT NULL,
   bank_name      VARCHAR(80) NOT NULL,
   created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_bank_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -139,6 +149,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   status          ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   admin_note      VARCHAR(255) NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   processed_at    TIMESTAMP NULL,
   processed_by    VARCHAR(50) NULL,
   INDEX idx_wd_status (status, created_at),
@@ -155,6 +166,7 @@ CREATE TABLE IF NOT EXISTS payments (
   status     ENUM('created','paid','failed') NOT NULL DEFAULT 'created',
   payment_id VARCHAR(40)  NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   paid_at    TIMESTAMP NULL,
   INDEX idx_pay_user (user_id, created_at),
   CONSTRAINT fk_pay_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -165,11 +177,13 @@ CREATE TABLE IF NOT EXISTS admins (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ---------- platform settings (admin-editable key-value store) ----------
 CREATE TABLE IF NOT EXISTS settings (
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   setting_key   VARCHAR(64)  NOT NULL PRIMARY KEY,
   setting_value VARCHAR(64)  NOT NULL,
   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
