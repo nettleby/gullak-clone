@@ -168,6 +168,13 @@ CREATE TABLE IF NOT EXISTS admins (
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- ---------- platform settings (admin-editable key-value store) ----------
+CREATE TABLE IF NOT EXISTS settings (
+  setting_key   VARCHAR(64)  NOT NULL PRIMARY KEY,
+  setting_value VARCHAR(64)  NOT NULL,
+  updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- ============================================================
 --  Seed data
 -- ============================================================
@@ -184,3 +191,10 @@ INSERT INTO metal_prices (metal, buy_rate, sell_rate, updated_by) VALUES
 INSERT INTO price_history (metal, buy_rate, sell_rate, recorded_by) VALUES
   ('gold',   11250.00, 10980.00, 'system'),
   ('silver',   138.00,   128.00, 'system');
+
+-- Default platform spreads (% over/under market mid, editable in admin panel)
+INSERT IGNORE INTO settings (setting_key, setting_value) VALUES
+  ('gold_buy_pct',   '1.5'),
+  ('gold_sell_pct',  '1.5'),
+  ('silver_buy_pct', '4.0'),
+  ('silver_sell_pct','4.0');

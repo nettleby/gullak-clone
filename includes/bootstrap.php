@@ -47,9 +47,17 @@ if (!defined('BASE_URL')) {
 }
 
 /*
- * Poor-man's cron: run any SIP instalments that became due for the
- * logged-in user. Cheap indexed query; never lets errors break the page.
+ * Poor-man's cron: market rates (2×/day, quota-guarded) + SIP instalments.
+ * Cheap indexed queries; never lets errors break the page.
  */
+try {
+    if (PHP_SAPI !== 'cli' && metals_sync_due(db())) {
+        $syncRes = metals_sync_rates();
+        if (!$syncRes['ok']) error_log('Rate auto-sync skipped: ' . $syncRes['msg']);
+    }
+} catch (Throwable $e) {
+    error_log('Rate sync error: ' . $e->getMessage());
+}
 if (is_logged_in()) {
     try {
         run_due_sips(db(), (int) current_user_id());

@@ -3,6 +3,40 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $admin = admin_require_login();
 $pdo = db();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sync_now') {
+    admin_csrf_check();
+    $res = metals_sync_rates(true);
+    flash_set($res['ok'] ? 'success' : 'error', $res['msg']);
+    header('Location: ' . url('admin/prices.php'));
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_spreads') {
+    admin_csrf_check();
+    $fields = ['gold_buy_pct', 'gold_sell_pct', 'silver_buy_pct', 'silver_sell_pct'];
+    $vals = [];
+    $bad = false;
+    foreach ($fields as $f) {
+        $v = filter_var($_POST[$f] ?? '', FILTER_VALIDATE_FLOAT);
+        if ($v === false || $v < 0 || $v > 25) { $bad = true; break; }
+        $vals[$f] = round($v, 2);
+    }
+    if ($bad) {
+        flash_set('error', 'Spreads must be numbers between 0 and 25%.');
+    } else {
+        try {
+            $st = $pdo->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?,?)
+                                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+            foreach ($vals as $k => $v) $st->execute([$k, (string) $v]);
+            flash_set('success', 'Spreads saved — they apply from the next sync (10:00/16:00) or Sync-now.');
+        } catch (Throwable $ex) {
+            flash_set('error', 'Save failed (run db/20260923-1430-created_settings_table.sql first): ' . $ex->getMessage());
+        }
+    }
+    header('Location: ' . url('admin/prices.php'));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     admin_csrf_check();
     $metal = ($_POST['metal'] ?? '') === 'silver' ? 'silver' : 'gold';
@@ -58,10 +92,71 @@ $page_title = 'Prices';
 $nav = 'prices';
 require __DIR__ . '/includes/header.php';
 $view = admin_view();
+
+/* feed status line (auto mode) */
+$lastSync = metals_last_sync($pdo);
+$callsToday = metals_calls_today($pdo);
+$nextSlot = null;
+foreach ((array) RATE_SYNC_TIMES as $t) {
+    $ts = strtotime(date('Y-m-d') . ' ' . $t);
+    if ($ts && $ts > time()) { $nextSlot = $ts; break; }
+}
+if ($nextSlot === null) $nextSlot = strtotime('+1 day', strtotime(date('Y-m-d') . ' ' . RATE_SYNC_TIMES[0]));
+$stale = RATE_SOURCE === 'auto' && (!$lastSync || time() - strtotime($lastSync) > 26 * 3600);
 ?>
 
 <div class="page-title">Prices</div>
 <p class="page-sub">Buy/sell rates per gram + history</p>
+
+<div class="card">
+  <div class="kv"><span class="k">Rate source</span>
+    <span class="v"><span class="badge <?= RATE_SOURCE === 'auto' ? 'badge-success' : 'badge-muted' ?>">
+      <?= RATE_SOURCE === 'auto' ? 'metals.dev auto (IBJA)' : 'manual' ?></span></span></div>
+  <?php if (RATE_SOURCE === 'auto'): ?>
+  <div class="kv"><span class="k">Last sync</span><span class="v"><?= $lastSync ? e(dt_ist($lastSync)) : 'never' ?></span></div>
+  <div class="kv"><span class="k">Next window</span><span class="v"><?= e(date('d M, H:i', $nextSlot)) ?></span></div>
+  <div class="kv"><span class="k">API calls today</span><span class="v"><?= (int) $callsToday ?> / <?= (int) RATE_MAX_CALLS_PER_DAY ?></span></div>
+  <?php if ($stale): ?>
+    <div class="flash flash-error">Feed is stale — last sync over 26h ago. Check the API key/quota.</div>
+  <?php endif; ?>
+  <form method="post" class="mt8">
+    <?= admin_csrf_field() ?>
+    <input type="hidden" name="action" value="sync_now">
+    <button class="btn btn-sm" type="submit" style="width:100%" <?= $callsToday >= RATE_MAX_CALLS_PER_DAY ? 'disabled' : '' ?>>Sync now from metals.dev</button>
+  </form>
+  <?php else: ?>
+  <p class="field-hint">Auto-sync is off (<span class="mono">RATE_SOURCE</span> in config). Set rates by hand below.</p>
+  <?php endif; ?>
+</div>
+
+<div class="card">
+  <div class="card-title">Platform spread (% over/under market mid)</div>
+  <?php $sp = get_spreads(); ?>
+  <form method="post">
+    <?= admin_csrf_field() ?>
+    <input type="hidden" name="action" value="save_spreads">
+    <div class="kv"><span class="k">Gold buy</span><span class="v"><?= money($rates['gold']['buy'] ?? 0) ?> (<?= e($sp['gold_buy']) ?>%)</span></div>
+    <div class="kv"><span class="k">Gold sell</span><span class="v"><?= money($rates['gold']['sell'] ?? 0) ?> (<?= e($sp['gold_sell']) ?>%)</span></div>
+    <div class="kv"><span class="k">Silver buy</span><span class="v"><?= money($rates['silver']['buy'] ?? 0) ?> (<?= e($sp['silver_buy']) ?>%)</span></div>
+    <div class="kv"><span class="k">Silver sell</span><span class="v"><?= money($rates['silver']['sell'] ?? 0) ?> (<?= e($sp['silver_sell']) ?>%)</span></div>
+    <div class="admin-form">
+      <?php
+      $spreadFields = ['gold_buy_pct' => 'Gold buy %', 'gold_sell_pct' => 'Gold sell %',
+                       'silver_buy_pct' => 'Silver buy %', 'silver_sell_pct' => 'Silver sell %'];
+      $spreadShort  = ['gold_buy_pct' => 'gold_buy', 'gold_sell_pct' => 'gold_sell',
+                       'silver_buy_pct' => 'silver_buy', 'silver_sell_pct' => 'silver_sell'];
+      foreach ($spreadFields as $key => $label): ?>
+      <div>
+        <label class="field-label" for="sp-<?= $key ?>"><?= $label ?></label>
+        <input class="field" id="sp-<?= $key ?>" name="<?= $key ?>" type="number" step="0.1" min="0" max="25" required
+               value="<?= e($sp[$spreadShort[$key]]) ?>">
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div class="mt14"><button class="btn btn-sm" type="submit" style="width:100%">Save spreads</button></div>
+  </form>
+  <p class="field-hint">Applies from the next auto-sync (10:00/16:00) or Sync-now. No API call on save.</p>
+</div>
 
 <div class="admin-card">
   <h2>Set metal rates (₹ per gram)</h2>

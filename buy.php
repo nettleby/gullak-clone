@@ -103,6 +103,7 @@ require __DIR__ . '/includes/header.php';
 
     <div class="summary">
       <div class="summary-row"><span>Rate</span><span><?= money($rate) ?>/g</span></div>
+      <div class="summary-row"><span>You pay</span><span id="out-inr">₹0</span></div>
       <div class="summary-row big"><span>You get</span><span id="out-grams">0.0000 g</span></div>
     </div>
 

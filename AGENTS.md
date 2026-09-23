@@ -58,6 +58,12 @@
   (offline fallback). No emojis in UI.
 * SIP: poor-man's cron in `includes/bootstrap.php` (`run_due_sips` on every
   logged-in page load) + real cron `cron/sip-runner.php` (CLI only).
+* Rates: `RATE_SOURCE auto` = metals.dev IBJA feed via `metals_sync_rates()`
+  (1 call/sync, 10:00+16:00 IST slots, 10h gap, hard cap `RATE_MAX_CALLS_PER_DAY`
+  counted from `price_history`); auto-hook in `bootstrap.php` (any page load,
+  CLI excluded) + `cron/rates-sync.php` + admin Sync-now; `manual` = admin-set.
+  Spreads: `GOLD/SILVER_BUY/SELL_SPREAD_PCT` over market mid. State derives
+  from `metal_prices.updated_by='metals.dev'` — no new tables.
 
 ## 3. Verified file map (from code, not README)
 
@@ -71,7 +77,7 @@
   `includes/footer.php`, `assets/css/style.css` (user app + mobile admin shell,
   neutral theme), `assets/js/app.js`
 * API: `api/icici-callback.php`, `api/get-rates.php`
-* Cron: `cron/sip-runner.php`
+* Cron: `cron/sip-runner.php`, `cron/rates-sync.php`
 * DB: `db/schema.sql` (fresh-install truth) + `db/migrate-v2.sql`
   (DEPRECATED legacy v1→v2 only, fails on fresh DBs) + new timestamped
   `db/YYYYMMDD-HHMM-*.sql` migrations (see §8)
@@ -104,7 +110,8 @@
   `transactions (ledger: deposit|buy|sell|sip_buy|withdraw_request|withdraw_refund|withdraw_paid|admin_credit|admin_debit)`,
   `sip_plans (active|paused|cancelled, next_run, failed_attempts)`,
   `sip_logs (success|failed)`, `bank_accounts`, `withdrawals (pending|approved|rejected)`,
-  `payments (order_id UNIQUE, created|paid|failed)`, `admins`.
+  `payments (order_id UNIQUE, created|paid|failed)`, `admins`,
+  `settings (admin-editable spreads, config-constant fallback)`.
 * Seeds: admin bcrypt + `gold 11250/10980`, `silver 138/128` + price_history rows.
 
 ## 6. README policy

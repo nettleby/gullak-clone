@@ -38,6 +38,23 @@ define('ICICI_CURRENCY', '356');      // INR numeric code
 define('ICICI_PAYTYPE', '0');         // 0 = hosted checkout (ICICI shows payment page)
 define('ICICI_ENABLED', true);        // set false to disable Add Money while offline
 
+/* ---------- Market rates (metals.dev, IBJA) ----------
+ * RATE_SOURCE 'auto': gold/silver buy/sell are synced from metals.dev twice
+ *   daily (RATE_SYNC_TIMES IST) with percent spreads over the market mid.
+ *   Free plan = 100 calls/mo: 2 auto/day ≈ 60/mo, hard-capped below.
+ * RATE_SOURCE 'manual': admin sets rates by hand on admin/prices.php.
+ * NOTE: This UAT key was shared in chat — rotate it on the metals.dev
+ *   dashboard before sharing this project or going live.
+ */
+define('METALS_API_KEY', 'KB0ZJ4ECLQTQOW6QMV9T9196QMV9T');
+define('RATE_SOURCE', 'auto');       // 'auto' = metals.dev feed, 'manual' = admin-set
+define('GOLD_BUY_SPREAD_PCT', 1.5);  // buy  = mid × (1 + pct/100)
+define('GOLD_SELL_SPREAD_PCT', 1.5); // sell = mid × (1 − pct/100)
+define('SILVER_BUY_SPREAD_PCT', 4.0);
+define('SILVER_SELL_SPREAD_PCT', 4.0);
+define('RATE_SYNC_TIMES', ['10:00', '16:00']); // IST slots, earliest-first
+define('RATE_MAX_CALLS_PER_DAY', 3); // hard quota guard (auto + manual Sync-now)
+
 /* ---------- Business rules (₹ / grams) ---------- */
 define('MIN_DEPOSIT', 100);        // min wallet top-up per order
 define('MAX_DEPOSIT', 100000);     // max wallet top-up per order

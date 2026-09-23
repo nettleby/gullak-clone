@@ -87,6 +87,183 @@ function get_rates(): array
     return $rates;
 }
 
+/* ---------------- metals.dev market feed (IBJA) ----------------
+ * Quota-first design (free plan = 100 calls/mo):
+ *  - exactly 1 API call per sync (latest endpoint, INR per gram)
+ *  - auto-sync at most twice daily (RATE_SYNC_TIMES IST) with a 10h
+ *    minimum gap, hard-capped at RATE_MAX_CALLS_PER_DAY incl. manual syncs
+ *  - no new tables: last-sync state derives from metal_prices.updated_at
+ *    and the daily call count from price_history (recorded_by='metals.dev')
+ * Field picks: gold = ibja_gold else spot gold; silver = ibja_silver
+ * else spot silver (doc sample carries no ibja_silver key).
+ */
+
+/** Raw fetch. Returns ['ok'=>true,'gold'=>float,'silver'=>float,'gold_src'=>..,'silver_src'=>..] or ['ok'=>false,'msg'=>..]. */
+function metals_fetch_latest(): array
+{
+    $url = 'https://api.metals.dev/v1/latest?api_key=' . urlencode(METALS_API_KEY)
+        . '&currency=INR&unit=g';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_CONNECTTIMEOUT => 10,
+    ]);
+    $res  = curl_exec($ch);
+    $err  = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($res === false) {
+        return ['ok' => false, 'msg' => 'Rate feed unreachable: ' . $err];
+    }
+    $data = json_decode($res, true);
+    if (!is_array($data) || ($data['status'] ?? '') !== 'success' || !is_array($data['metals'] ?? null)) {
+        $msg = $data['error_message'] ?? ('Bad rate response (HTTP ' . $code . ')');
+        return ['ok' => false, 'msg' => (string) $msg];
+    }
+    $m = $data['metals'];
+    $gold = $m['ibja_gold'] ?? $m['gold'] ?? null;
+    $silver = $m['ibja_silver'] ?? $m['silver'] ?? null;
+    if (!is_numeric($gold) || (float) $gold <= 0 || !is_numeric($silver) || (float) $silver <= 0) {
+        return ['ok' => false, 'msg' => 'Rate feed missing gold/silver values.'];
+    }
+    return [
+        'ok' => true,
+        'gold' => (float) $gold, 'silver' => (float) $silver,
+        'gold_src' => isset($m['ibja_gold']) ? 'ibja' : 'spot',
+        'silver_src' => isset($m['ibja_silver']) ? 'ibja' : 'spot',
+    ];
+}
+
+/** Spread buy/sell off a market mid (percent, 2-decimal half-up). */
+function metals_spread_rates(float $mid, float $buyPct, float $sellPct): array
+{
+    $buy  = round($mid * (1 + $buyPct / 100), 2);
+    $sell = round($mid * (1 - $sellPct / 100), 2);
+    if ($sell > $buy) { [$buy, $sell] = [$sell, $buy]; } // degenerate config guard
+    return [$buy, $sell];
+}
+
+/**
+ * Platform spreads (%): admin-editable `settings` rows with config-constant
+ * fallback, clamped to 0–25. Never fatal — a missing table/row just yields
+ * the compiled defaults (fresh DBs without the migration keep pricing).
+ */
+function get_spreads(): array
+{
+    static $sp = null;
+    if ($sp !== null) return $sp;
+    $sp = [
+        'gold_buy' => GOLD_BUY_SPREAD_PCT, 'gold_sell' => GOLD_SELL_SPREAD_PCT,
+        'silver_buy' => SILVER_BUY_SPREAD_PCT, 'silver_sell' => SILVER_SELL_SPREAD_PCT,
+    ];
+    $map = ['gold_buy_pct' => 'gold_buy', 'gold_sell_pct' => 'gold_sell',
+            'silver_buy_pct' => 'silver_buy', 'silver_sell_pct' => 'silver_sell'];
+    try {
+        $rows = db()->query("SELECT setting_key, setting_value FROM settings
+                             WHERE setting_key IN ('gold_buy_pct','gold_sell_pct','silver_buy_pct','silver_sell_pct')")
+            ->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach ($map as $dbKey => $short) {
+            if (!isset($rows[$dbKey])) continue;
+            $v = filter_var($rows[$dbKey], FILTER_VALIDATE_FLOAT);
+            if ($v === false || $v < 0 || $v > 25) continue;
+            $sp[$short] = $v;
+        }
+    } catch (Throwable $e) {
+        error_log('get_spreads fallback to config: ' . $e->getMessage());
+    }
+    return $sp;
+}
+
+/** API syncs used today (auto + manual), for the quota guard.
+ * Counts gold rows only — one sync writes gold+silver, so rows would double-count. */
+function metals_calls_today(PDO $pdo): int
+{
+    $st = $pdo->query("SELECT COUNT(*) FROM price_history
+                       WHERE recorded_by = 'metals.dev' AND metal = 'gold' AND recorded_at >= CURDATE()");
+    return (int) $st->fetchColumn();
+}
+
+/** Last successful auto-sync time (null when never). */
+function metals_last_sync(PDO $pdo): ?string
+{
+    $st = $pdo->query("SELECT MAX(updated_at) FROM metal_prices WHERE updated_by = 'metals.dev'");
+    $ts = $st->fetchColumn();
+    return $ts ? (string) $ts : null;
+}
+
+/** True when an auto-sync is due: past a slot with no sync yet, 10h gap, under cap. */
+function metals_sync_due(PDO $pdo, ?int $now = null): bool
+{
+    if (RATE_SOURCE !== 'auto' || !METALS_API_KEY) return false;
+    $now = $now ?? time();
+    // IST day/slots (server tz is already Asia/Kolkata).
+    $today = date('Y-m-d', $now);
+    $slots = [];
+    foreach ((array) RATE_SYNC_TIMES as $t) {
+        $ts = strtotime($today . ' ' . $t);
+        if ($ts && $ts <= $now) $slots[] = $ts;
+    }
+    if (!$slots) return false;                       // before first slot today
+    if (metals_calls_today($pdo) >= RATE_MAX_CALLS_PER_DAY) return false;
+    $last = metals_last_sync($pdo);
+    if ($last === null) return true;                  // never synced
+    $lastTs = strtotime($last);
+    if ($lastTs && date('Y-m-d', $lastTs) === $today) {
+        // already synced today: only if a LATER slot passed with 10h gap
+        $later = array_filter($slots, fn($s) => $s > $lastTs);
+        if (!$later) return false;
+        if ($now - $lastTs < 10 * 3600) return false;
+    }
+    return true;
+}
+
+/**
+ * Run one sync: fetch (1 call) → spread → write metal_prices + price_history.
+ * $force=true skips the schedule check but NEVER the daily cap.
+ * Returns ['ok'=>bool,'msg'=>..,'rates'=>[metal=>[buy,sell]]].
+ */
+function metals_sync_rates(bool $force = false): array
+{
+    $pdo = db();
+    try {
+        if (RATE_SOURCE !== 'auto') {
+            return ['ok' => false, 'msg' => 'Rate source is manual — auto-sync disabled.'];
+        }
+        if (!$force && !metals_sync_due($pdo)) {
+            return ['ok' => false, 'msg' => 'No sync due (schedule/quota guard).'];
+        }
+        if (metals_calls_today($pdo) >= RATE_MAX_CALLS_PER_DAY) {
+            return ['ok' => false, 'msg' => 'Daily API quota reached — try again tomorrow.'];
+        }
+        $feed = metals_fetch_latest();
+        if (!$feed['ok']) return $feed;
+
+        $sp = get_spreads();
+        [$gBuy, $gSell] = metals_spread_rates($feed['gold'], $sp['gold_buy'], $sp['gold_sell']);
+        [$sBuy, $sSell] = metals_spread_rates($feed['silver'], $sp['silver_buy'], $sp['silver_sell']);
+        $rates = ['gold' => [$gBuy, $gSell], 'silver' => [$sBuy, $sSell]];
+
+        $pdo->beginTransaction();
+        $up = $pdo->prepare('UPDATE metal_prices SET buy_rate = ?, sell_rate = ?, updated_by = "metals.dev" WHERE metal = ?');
+        $hi = $pdo->prepare('INSERT INTO price_history (metal, buy_rate, sell_rate, recorded_by) VALUES (?,?,?,"metals.dev")');
+        foreach ($rates as $metal => [$buy, $sell]) {
+            $up->execute([$buy, $sell, $metal]);
+            $hi->execute([$metal, $buy, $sell]);
+        }
+        $pdo->commit();
+        return ['ok' => true,
+            'msg' => sprintf('Rates synced (gold %s, silver %s).', $feed['gold_src'], $feed['silver_src']),
+            'rates' => ['gold' => ['buy' => $gBuy, 'sell' => $gSell], 'silver' => ['buy' => $sBuy, 'sell' => $sSell]]];
+    } catch (Throwable $ex) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('metals.dev sync failed: ' . $ex->getMessage());
+        return ['ok' => false, 'msg' => 'Sync failed: ' . $ex->getMessage()];
+    }
+}
+
 /* ---------------- exact decimal money math ----------------
  * Every rupee amount is a 2-decimal quantity, every rate 2 decimals and every
  * gram balance 4 decimals. All trade arithmetic is therefore done on scaled
