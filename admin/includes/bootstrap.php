@@ -47,7 +47,7 @@ function admin_current(): ?array
 function admin_require_login(): array
 {
     if (!admin_is_logged_in() || !admin_current()) {
-        // Unified login: single page with User/Admin tabs (admin/login.php is a shim).
+        // Separate admin login: preserve destination via ?next= for post-login return.
         $cur = $_SERVER['REQUEST_URI'] ?? 'admin/index.php';
         // Make next relative to the app root so login.php can validate + redirect back.
         $base = (defined('BASE_URL') ? (string) BASE_URL : '');
@@ -57,7 +57,7 @@ function admin_require_login(): array
         }
         $rel = ltrim($rel, '/');
         if ($rel === '' || str_contains($rel, '..')) $rel = 'admin/index.php';
-        header('Location: ' . url('login.php?tab=admin&next=' . urlencode($rel)));
+        header('Location: ' . url('admin/login.php?next=' . urlencode($rel)));
         exit;
     }
     return admin_current();

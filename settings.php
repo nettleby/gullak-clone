@@ -8,6 +8,7 @@ $uid = (int) $user['id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
+    $bank_section = in_array($action, ['add_account', 'edit_account', 'delete_account_row'], true);
 
     if ($action === 'profile') {
         $name  = trim($_POST['name'] ?? '');
@@ -67,8 +68,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Bank account saved.');
         }
 
-    } elseif ($action === 'delete_account_row') {
-        /* never allow deleting a bank account tied to a pending withdrawal */
+    } elseif ($action === 'edit_account') {
+        /* same validation as add; blocked while a withdrawal is pending (as with delete) */
+        $bid    = (int) ($_POST['bank_id'] ?? 0);
+        $holder = trim($_POST['holder_name'] ?? '');
+        $accno  = preg_replace('/\s+/', '', $_POST['account_number'] ?? '');
+        $ifsc   = strtoupper(trim($_POST['ifsc'] ?? ''));
+        $bank   = trim($_POST['bank_name'] ?? '');
+
+        $st = $pdo->prepare('SELECT id FROM bank_accounts WHERE id = ? AND user_id = ?');
+        $st->execute([$bid, $uid]);
+        if (!$st->fetch()) {
+            flash_set('error', 'Account not found.');
+        } else {
+            $st = $pdo->prepare('SELECT COUNT(*) FROM withdrawals WHERE bank_account_id = ? AND status = "pending"');
+            $st->execute([$bid]);
+            if ((int) $st->fetchColumn() > 0) {
+                flash_set('error', 'This account has a pending withdrawal — wait until it settles.');
+            } elseif (mb_strlen($holder) < 2 || !preg_match('/^\d{9,18}$/', $accno)
+                || !preg_match('/^[A-Z]{4}0[A-Z0-9]{6}$/', $ifsc) || mb_strlen($bank) < 2) {
+                flash_set('error', 'Please check the account details (account no. 9-18 digits, valid IFSC like HDFC0001234).');
+            } else {
+                $pdo->prepare('UPDATE bank_accounts SET holder_name = ?, account_number = ?, ifsc = ?, bank_name = ?
+                                WHERE id = ? AND user_id = ?')
+                    ->execute([$holder, $accno, $ifsc, $bank, $bid, $uid]);
+                flash_set('success', 'Bank account updated.');
+            }
+        }
+
+    } elseif ($action === 'delete_account_row') {        /* never allow deleting a bank account tied to a pending withdrawal */
         $bid = (int) ($_POST['bank_id'] ?? 0);
         $st = $pdo->prepare('SELECT id FROM bank_accounts WHERE id = ? AND user_id = ?');
         $st->execute([$bid, $uid]);
@@ -114,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header('Location: ' . url('settings.php'));
+    header('Location: ' . url('settings.php' . (!empty($bank_section) ? '#bank' : '')));
     exit;
 }
 
@@ -206,10 +234,29 @@ require __DIR__ . '/includes/header.php';
           <div class="li-title"><?= e($b['bank_name']) ?> ···<?= e(substr($b['account_number'], -4)) ?></div>
           <div class="li-sub"><?= e($b['holder_name']) ?> · IFSC <?= e($b['ifsc']) ?></div>
         </div>
+        <button class="btn btn-sm btn-ghost" type="button" data-toggle-edit="edit-<?= (int) $b['id'] ?>" aria-label="Edit account"><?= lucide('pencil') ?></button>
         <form method="post" data-confirm="Remove this bank account?"><?= csrf_field() ?>
           <input type="hidden" name="action" value="delete_account_row">
           <input type="hidden" name="bank_id" value="<?= (int) $b['id'] ?>">
           <button class="btn btn-sm btn-danger-ghost" type="submit" aria-label="Remove account"><?= lucide('trash-2') ?></button>
+        </form>
+      </div>
+      <div id="edit-<?= (int) $b['id'] ?>" hidden style="padding:4px 2px 12px">
+        <form method="post">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="edit_account">
+          <input type="hidden" name="bank_id" value="<?= (int) $b['id'] ?>">
+          <label class="field-label" for="eh-<?= (int) $b['id'] ?>">Account holder</label>
+          <input class="field" id="eh-<?= (int) $b['id'] ?>" name="holder_name" required value="<?= e($b['holder_name']) ?>">
+          <label class="field-label" for="ea-<?= (int) $b['id'] ?>">Account number</label>
+          <input class="field" id="ea-<?= (int) $b['id'] ?>" name="account_number" required inputmode="numeric" value="<?= e($b['account_number']) ?>">
+          <label class="field-label" for="ei-<?= (int) $b['id'] ?>">IFSC code</label>
+          <input class="field" id="ei-<?= (int) $b['id'] ?>" name="ifsc" required maxlength="11" style="text-transform:uppercase" value="<?= e($b['ifsc']) ?>">
+          <label class="field-label" for="eb-<?= (int) $b['id'] ?>">Bank name</label>
+          <input class="field" id="eb-<?= (int) $b['id'] ?>" name="bank_name" required value="<?= e($b['bank_name']) ?>">
+          <div class="btn-row mt8">
+            <button class="btn btn-sm" type="submit" style="width:100%">Save changes</button>
+          </div>
         </form>
       </div>
     <?php endforeach; ?>

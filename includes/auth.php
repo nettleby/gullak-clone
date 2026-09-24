@@ -36,7 +36,7 @@ function require_login(): array
         $base = ltrim((string) (defined('BASE_URL') ? BASE_URL : ''), '/');
         if ($base !== '' && str_starts_with($rel, $base)) $rel = ltrim(substr($rel, strlen($base)), '/');
         if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')) $rel = 'index.php';
-        header('Location: ' . url('login.php?tab=user&next=' . urlencode($rel)));
+        header('Location: ' . url('login.php?next=' . urlencode($rel)));
         exit;
     }
     return current_user();
@@ -55,141 +55,12 @@ function attempt_login(string $email, string $password): bool
     return false;
 }
 
-/* ---------------- admin auth (unified login support) ----------------
- * Admins live in a separate table + separate session namespace (MGAADM)
- * so a browser can be logged in as user + admin at the same time.
- * The unified login page (login.php) swaps between the two sessions.
+/* ---------------- admin sessions ----------------
+ * Admins live in a separate table + separate session namespace (MGAADM),
+ * started by admin/includes/bootstrap.php, so a browser can be logged in
+ * as user + admin at the same time. Each login page touches only its own
+ * session — no cross-session swapping anywhere.
  */
-
-if (!defined('ADMIN_SESSION_NAME')) define('ADMIN_SESSION_NAME', 'MGAADM');
-
-function user_session_cookie_opts(): array
-{
-    return [
-        'cookie_httponly' => true,
-        'cookie_samesite' => 'Lax',
-        'cookie_secure'   => !empty($_SERVER['HTTPS']),
-    ];
-}
-
-function admin_session_cookie_opts(): array
-{
-    return [
-        'cookie_httponly' => true,
-        'cookie_samesite' => 'Lax',
-        'cookie_secure'   => !empty($_SERVER['HTTPS']),
-    ];
-}
-
-/** Switch PHP to $name session (closing current first). No output must precede this. */
-function swap_session(string $name, array $opts): void
-{
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        if (session_name() === $name) return; // already there
-        session_write_close();
-    }
-    // Clear sticky ID from the previous session, otherwise the new session
-    // would reuse it and both namespaces would share one storage file.
-    session_id('');
-    session_name($name);
-    // Bind to this namespace's cookie when present (prevents ID bleed).
-    if (!empty($_COOKIE[$name]) && preg_match('/^[A-Za-z0-9,-]+$/', (string) $_COOKIE[$name])) {
-        session_id((string) $_COOKIE[$name]);
-    }
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start($opts);
-    }
-}
-
-/** Default user session name (usually PHPSESSID from php.ini). */
-function user_session_name(): string
-{
-    return (string) (ini_get('session.name') ?: 'PHPSESSID');
-}
-
-/** Run $fn with the admin (MGAADM) session active, then restore user session.
- * The previous session is restored by its saved ID — never via cookie.
- * (On a first visit there is no cookie yet; cookie-binding the restore
- * would orphan the session holding the CSRF tokens just rendered.) */
-function with_admin_session(callable $fn)
-{
-    $prevName = session_name();
-    if ($prevName === '') $prevName = user_session_name();
-    $prevId = session_status() === PHP_SESSION_ACTIVE ? (string) session_id() : '';
-    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
-    // Open the admin session (cookie-bound: resume it when the browser has it).
-    session_id('');
-    session_name(ADMIN_SESSION_NAME);
-    if (!empty($_COOKIE[ADMIN_SESSION_NAME]) && preg_match('/^[A-Za-z0-9,-]+$/', (string) $_COOKIE[ADMIN_SESSION_NAME])) {
-        session_id((string) $_COOKIE[ADMIN_SESSION_NAME]);
-    }
-    session_start(admin_session_cookie_opts());
-    try {
-        return $fn();
-    } finally {
-        session_write_close();
-        // Restore the exact previous session.
-        session_id('');
-        session_name($prevName);
-        if ($prevId !== '' && preg_match('/^[A-Za-z0-9,-]+$/', $prevId)) {
-            session_id($prevId);
-        } elseif (!empty($_COOKIE[$prevName]) && preg_match('/^[A-Za-z0-9,-]+$/', (string) $_COOKIE[$prevName])) {
-            session_id((string) $_COOKIE[$prevName]);
-        }
-        session_start(user_session_cookie_opts());
-    }
-}
-
-/** Must be called with the ADMIN session active. */
-function attempt_admin_login_active(string $username, string $password): bool
-{
-    $st = db()->prepare('SELECT * FROM admins WHERE username = ?');
-    $st->execute([trim($username)]);
-    $a = $st->fetch();
-    if ($a && password_verify($password, $a['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['admin_id'] = (int) $a['id'];
-        return true;
-    }
-    return false;
-}
-
-function admin_csrf_token_active(): string
-{
-    if (empty($_SESSION['admin_csrf'])) {
-        $_SESSION['admin_csrf'] = bin2hex(random_bytes(16));
-    }
-    return $_SESSION['admin_csrf'];
-}
-
-function admin_csrf_check_active(string $sent): bool
-{
-    return isset($_SESSION['admin_csrf'])
-        && is_string($sent) && $sent !== ''
-        && hash_equals((string) $_SESSION['admin_csrf'], $sent);
-}
-
-/** True if the MGAADM session holds a valid admin (does not disturb user session). */
-function unified_admin_is_logged_in(): bool
-{
-    return (bool) with_admin_session(function () {
-        if (empty($_SESSION['admin_id'])) return false;
-        $st = db()->prepare('SELECT id FROM admins WHERE id = ?');
-        $st->execute([(int) $_SESSION['admin_id']]);
-        if (!$st->fetch()) {
-            unset($_SESSION['admin_id']);
-            return false;
-        }
-        return true;
-    });
-}
-
-function unified_admin_csrf_token(): string
-{
-    return (string) with_admin_session(function () {
-        return admin_csrf_token_active();
-    });
-}
 
 function register_user(string $name, string $email, string $phone, string $password): array
 {

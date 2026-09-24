@@ -45,8 +45,8 @@
   `Set-Cookie` that would clobber the user's real session; sessionless
   returns render an inline result page, never a login redirect.
 * Sessions: user session (httponly, Lax) + separate `MGAADM` admin session.
-  Unified login `login.php?tab=user|admin` swaps via `swap_session` /
-  `with_admin_session` (`includes/auth.php`) so both can coexist.
+  Separate logins (`login.php` user, `admin/login.php` admin, both `?next=`
+  aware) on isolated sessions so both can coexist.
   CSRF on all POSTs (`csrf_field` / `admin_csrf_field`, `419` on fail).
 * Frontend: server-rendered PHP, Lucide via `unpkg lucide@0.462.0` pinned in
   `includes/footer.php` + `admin/includes/footer.php`, Chart.js CDN with offline
@@ -70,7 +70,7 @@
 * User: `index.php` (dashboard), `buy.php`, `sell.php`, `wallet.php`,
   `add-money.php`, `sip.php`, `portfolio.php`, `withdraw.php`, `history.php`,
   `notifications.php`, `profile.php`, `settings.php`, `help.php`, `about.php`,
-  `terms.php`, `privacy.php`, `login.php` (unified User/Admin tabs `?tab=`),
+  `terms.php`, `privacy.php`, `login.php` (user login, `?next=` aware),
   `register.php`, `logout.php`
 * Shared: `config/config.php`, `includes/bootstrap.php`, `includes/db.php`,
   `includes/auth.php`, `includes/functions.php`, `includes/header.php`,
@@ -86,7 +86,7 @@
   `admin/index.php`, `admin/prices.php`, `admin/users.php`,
   `admin/user-view.php`, `admin/withdrawals.php`, `admin/sips.php`,
   `admin/more.php`,
-  `admin/change-password.php`, `admin/login.php` (shim → `login.php?tab=admin`),
+  `admin/change-password.php`, `admin/login.php`,
   `admin/logout.php`,
   `admin/includes/bootstrap.php`, `admin/includes/header.php`,
   `admin/includes/footer.php`

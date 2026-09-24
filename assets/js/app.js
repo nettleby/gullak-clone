@@ -108,6 +108,19 @@ document.addEventListener('DOMContentLoaded', function () {
     })(0);
   })();
 
+  /* ---------- inline edit toggles: <button data-toggle-edit="edit-12"> ---------- */
+  document.querySelectorAll('[data-toggle-edit]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pane = document.getElementById(btn.getAttribute('data-toggle-edit'));
+      if (!pane) return;
+      pane.hidden = !pane.hidden;
+      if (!pane.hidden) {
+        var first = pane.querySelector('input');
+        if (first) first.focus();
+      }
+    });
+  });
+
   /* ---------- quick-amount chips:  <button class="chip" data-fill="500" data-target="#amount"> ---------- */
   document.querySelectorAll('.chip[data-fill]').forEach(function (chip) {
     chip.addEventListener('click', function () {

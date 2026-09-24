@@ -1,4 +1,5 @@
 </main>
+<?php if (empty($hide_tabs)): ?>
   <nav class="tabbar tabbar-admin">
     <?php foreach ($navItems as $key => [$href, $label, $icon]): ?>
       <a class="tab <?= ($tabKey === $key) ? 'active' : '' ?>" href="<?= url($href) ?>">
@@ -7,6 +8,7 @@
       </a>
     <?php endforeach; ?>
   </nav>
+<?php endif; ?>
 </div>
 <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js" crossorigin="anonymous"></script>
@@ -16,6 +18,14 @@ document.addEventListener('DOMContentLoaded', function () {
     try { window.lucide.createIcons(); } catch (e) {}
   }
   function mgSwal() { return (typeof window.Swal !== 'undefined' && window.Swal.fire) ? window.Swal : null; }
+  /* ---------- password show/hide toggles ---------- */
+  document.querySelectorAll('[data-toggle-pw]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = document.getElementById(btn.getAttribute('data-toggle-pw'));
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+    });
+  });
   function mgConfirm(message) {
     var S = mgSwal();
     if (!S) return Promise.resolve(window.confirm(message));
