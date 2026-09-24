@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();   // public page — login only needed for actions
 
 $active_tab = 'profile';
 $page_title  = 'Privacy policy';

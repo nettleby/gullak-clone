@@ -1,12 +1,14 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
-$uid    = (int) $user['id'];
+$uid    = $user ? (int) $user['id'] : 0;
 $amount = null;
 $pay    = null;   // ['merchantTxnNo'=>..., 'redirectURI'=>..., 'tranCtx'=>..., 'amount'=>...] once initiated
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_order') {
+    $user = require_login();   // topping up is an action — guests log in first (returns here after)
+    $uid = (int) $user['id'];
     csrf_check();
     $amount = dec_to_scaled($_POST['amount'] ?? '', 2) / 100;          // exact 2-decimal ₹
 
@@ -63,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 
 /* Manual verify: user returns without callback (e.g. closed ICICI tab). */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verify_order') {
+    $user = require_login();
+    $uid = (int) $user['id'];
     csrf_check();
     $txn = preg_replace('/[^A-Za-z0-9]/', '', (string) ($_POST['merchantTxnNo'] ?? ''));
     if ($txn === '') {
@@ -200,7 +204,11 @@ require __DIR__ . '/includes/header.php';
   <div class="kv"><span class="k">Card OTP</span><span class="v">123456</span></div>
   <div class="kv"><span class="k">Test net-banking</span><span class="v">CC Avenue Test Bank</span></div>
   <div class="kv"><span class="k">Test UPI</span><span class="v">test@ybl</span></div>
+  <?php if ($user): ?>
   <div class="kv"><span class="k">Wallet</span><span class="v"><?= money(wallet_balance($uid)) ?></span></div>
+  <?php else: ?>
+  <div class="kv"><span class="k">Wallet</span><span class="v"><a href="<?= url('login.php?next=' . urlencode('add-money.php')) ?>">Log in to view</a></span></div>
+  <?php endif; ?>
 </div>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

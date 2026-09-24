@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
-$uid    = (int) $user['id'];
+$uid    = $user ? (int) $user['id'] : 0;
 $metal  = ($_GET['metal'] ?? ($_POST['metal'] ?? 'gold')) === 'silver' ? 'silver' : 'gold';
 $rates  = get_rates();
-$balance = wallet_balance($uid);
+$balance = $uid ? wallet_balance($uid) : 0;
 
 if (!isset($rates[$metal])) {
     flash_set('error', 'Rates not configured yet. Please try again later.');
@@ -15,6 +15,8 @@ if (!isset($rates[$metal])) {
 $rate = $rates[$metal]['buy'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_login();   // buying is an action — guests log in first (returns here after)
+    $uid = (int) $user['id'];
     csrf_check();
     $gramsIn = dec_to_scaled($_POST['grams'] ?? '', 4);            // exact, scaled ×10⁴
     $inrPaisa = dec_to_scaled($_POST['amount'] ?? '', 2);          // exact, scaled ×10²
@@ -36,7 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$hold = get_holdings($uid);
+$hold = $uid ? get_holdings($uid)
+    : ['gold' => ['grams' => 0, 'invested' => 0], 'silver' => ['grams' => 0, 'invested' => 0]];
 $active_tab = 'invest';
 $page_title  = 'Buy ' . ucfirst($metal);
 require __DIR__ . '/includes/header.php';
@@ -107,9 +110,11 @@ require __DIR__ . '/includes/header.php';
       <div class="summary-row big"><span>You get</span><span id="out-grams">0.0000 g</span></div>
     </div>
 
+    <?php if ($user): ?>
     <div id="calc-lowbalance" style="display:none" class="flash flash-error mt8">
       Amount exceeds your wallet balance. <a href="<?= url('add-money.php') ?>" style="color:var(--red);font-weight:900">Add money</a> first.
     </div>
+    <?php endif; ?>
 
     <form method="post" class="mt14">
       <?= csrf_field() ?>

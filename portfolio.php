@@ -1,11 +1,12 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo   = db();
-$uid   = (int) $user['id'];
+$uid   = $user ? (int) $user['id'] : 0;
 $rates = get_rates();
-$hold  = get_holdings($uid);
+$hold  = $uid ? get_holdings($uid)
+    : ['gold' => ['grams' => 0, 'invested' => 0], 'silver' => ['grams' => 0, 'invested' => 0]];
 
 $gVal  = $hold['gold']['grams']   * ($rates['gold']['sell']   ?? 0);
 $sVal  = $hold['silver']['grams'] * ($rates['silver']['sell'] ?? 0);
@@ -26,6 +27,10 @@ require __DIR__ . '/includes/header.php';
 
 <div class="page-title">Portfolio</div>
 <p class="page-sub">Everything you own, valued at today's rates.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to build your portfolio', 'Track allocation, average prices and P&L once you start investing.') ?>
+<?php endif; ?>
 
 <div class="hero">
   <button class="eye-btn" data-toggle-balance aria-label="Show or hide balances"><?= lucide('eye') ?></button>

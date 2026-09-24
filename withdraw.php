@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_login();   // withdrawals move money — guests log in first (returns here after)
+    $uid = (int) $user['id'];
     csrf_check();
     $action = $_POST['action'] ?? '';
 
@@ -105,9 +107,13 @@ require __DIR__ . '/includes/header.php';
       <div class="tl-body"><div class="tl-title">Money arrives</div><div class="tl-sub">1-2 working days to your bank · rejections are refunded in full</div></div>
     </div>
   </div>
-  <div class="kv" style="margin-top:6px"><span class="k">Wallet balance</span><span class="v"><?= money($balance) ?></span></div>
+  <div class="kv" style="margin-top:6px"><span class="k">Wallet balance</span><span class="v"><?= $user ? money($balance) : '—' ?></span></div>
   <div class="kv"><span class="k">Minimum withdrawal</span><span class="v"><?= money(MIN_WITHDRAW, 0) ?></span></div>
 </div>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to withdraw', 'Save bank accounts and request payouts once you are logged in.') ?>
+<?php endif; ?>
 
 <?php if ($banks): ?>
 <div class="card">
@@ -146,8 +152,8 @@ require __DIR__ . '/includes/header.php';
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="add_account">
 
-    <label class="field-label" for="holder_name">Account holder</label>
-    <input class="field" id="holder_name" name="holder_name" required placeholder="<?= e($user['name']) ?>">
+      <label class="field-label" for="holder_name">Account holder</label>
+      <input class="field" id="holder_name" name="holder_name" required placeholder="<?= $user ? e($user['name']) : 'Full name as per bank' ?>">
 
     <label class="field-label" for="account_number">Account number</label>
     <input class="field" id="account_number" name="account_number" required inputmode="numeric"

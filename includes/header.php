@@ -45,13 +45,14 @@ if ($u) {
 </head>
 <body>
 <div class="app">
-<?php if (empty($hide_header) && $u): ?>
+<?php if (empty($hide_header)): ?>
   <header class="topbar">
     <a class="brand" href="<?= url('index.php') ?>">
       <span class="brand-mark"><?= lucide('piggy-bank') ?></span>
       <span class="brand-name"><?= e(APP_NAME) ?></span>
     </a>
     <div class="topbar-actions">
+      <?php if ($u): ?>
       <a class="icon-btn" href="<?= url('notifications.php') ?>" aria-label="Notifications">
         <?= lucide('bell') ?>
         <?php if ($bell_dot > 0): ?><span class="dot-alert"><?= (int) $bell_dot ?></span><?php endif; ?>
@@ -60,6 +61,9 @@ if ($u) {
         <?= lucide('wallet', 'ic-sm') ?>
         <span class="wallet-chip-amount"><?= money(wallet_balance((int) $u['id']), 2) ?></span>
       </a>
+      <?php else: ?>
+      <a class="btn btn-sm" href="<?= url('login.php?next=' . urlencode(current_path())) ?>"><?= lucide('log-in') ?> Log in</a>
+      <?php endif; ?>
     </div>
   </header>
 <?php endif; ?>

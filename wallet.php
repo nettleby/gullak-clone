@@ -1,10 +1,10 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo     = db();
-$uid     = (int) $user['id'];
-$balance = wallet_balance($uid);
+$uid     = $user ? (int) $user['id'] : 0;
+$balance = $uid ? wallet_balance($uid) : 0;
 
 /* money in / out this month */
 $st = $pdo->prepare(
@@ -30,6 +30,10 @@ require __DIR__ . '/includes/header.php';
 
 <div class="page-title">Wallet</div>
 <p class="page-sub">Money here is instantly usable for buying gold &amp; silver.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to view your wallet', 'Your balance, top-ups and money movements appear here after you log in.') ?>
+<?php require __DIR__ . '/includes/footer.php'; exit; endif; ?>
 
 <div class="hero" style="background:linear-gradient(135deg,#34D399,#059669);box-shadow:0 12px 28px rgba(5,150,105,.32)">
   <button class="eye-btn" data-toggle-balance aria-label="Show or hide balances"><?= lucide('eye') ?></button>

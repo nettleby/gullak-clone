@@ -1,13 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
-$hold    = get_holdings($uid);
+$hold    = $uid ? get_holdings($uid) : ['gold' => ['grams' => 0, 'invested' => 0], 'silver' => ['grams' => 0, 'invested' => 0]];
 $rates   = get_rates();
-$balance = wallet_balance($uid);
+$balance = $uid ? wallet_balance($uid) : 0;
 
 $gVal     = $hold['gold']['grams'] * ($rates['gold']['sell'] ?? 0);
 $sVal     = $hold['silver']['grams'] * ($rates['silver']['sell'] ?? 0);
@@ -28,15 +28,19 @@ $st = $pdo->prepare('SELECT COUNT(*) FROM bank_accounts WHERE user_id = ?');
 $st->execute([$uid]);
 $bankCount = (int) $st->fetchColumn();
 
-$initials = mb_strtoupper(mb_substr($user['name'], 0, 1) . (mb_strpos($user['name'], ' ')
-    ? mb_substr($user['name'], mb_strpos($user['name'], ' ') + 1, 1) : ''));
+$initials = $user ? mb_strtoupper(mb_substr($user['name'], 0, 1) . (mb_strpos($user['name'], ' ')
+    ? mb_substr($user['name'], mb_strpos($user['name'], ' ') + 1, 1) : '')) : '';
 
-$memberDays = max(1, (int) floor((time() - strtotime($user['created_at'])) / 86400));
+$memberDays = $user ? max(1, (int) floor((time() - strtotime($user['created_at'])) / 86400)) : 0;
 
 $active_tab = 'profile';
 $page_title  = 'Profile';
 require __DIR__ . '/includes/header.php';
 ?>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to view your profile', 'Your portfolio, SIPs, banks and settings live here after you log in.') ?>
+<?php else: ?>
 
 <div class="profile-head">
   <div class="avatar"><?= e($initials ?: 'U') ?></div>
@@ -137,8 +141,9 @@ require __DIR__ . '/includes/header.php';
     <span class="mi-end"><?= lucide('chevron-right') ?></span>
   </a>
 </div>
+<?php endif; ?>
 
-<!-- more -->
+<!-- more (public) -->
 <div class="sec-head"><?= lucide('circle-help') ?><h2>More</h2></div>
 <div class="menu">
   <a class="menu-item" href="<?= url('help.php') ?>">
@@ -173,5 +178,7 @@ require __DIR__ . '/includes/header.php';
   </a>
 </div>
 
+<?php if ($user): ?>
 <a class="btn btn-danger-ghost" href="<?= url('logout.php') ?>" style="display:flex" data-confirm="Log out of your account?"><?= lucide('log-out') ?> Log out</a>
+<?php endif; ?>
 <?php require __DIR__ . '/includes/footer.php'; ?>

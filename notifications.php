@@ -1,9 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
 /* things that need attention */
 $st = $pdo->prepare('SELECT * FROM sip_plans WHERE user_id = ? AND status = "paused" ORDER BY next_run');
@@ -28,6 +28,10 @@ require __DIR__ . '/includes/header.php';
 
 <div class="page-title">Notifications</div>
 <p class="page-sub">Alerts and account activity.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to view notifications', 'Paused SIPs, pending withdrawals and activity alerts appear here after you log in.') ?>
+<?php require __DIR__ . '/includes/footer.php'; exit; endif; ?>
 
 <?php if (!$pausedSips && !$pendingWd && !$txns): ?>
   <div class="card">

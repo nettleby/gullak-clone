@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_login();   // every settings change needs an account — guests log in first
+    $uid = (int) $user['id'];
     csrf_check();
     $action = $_POST['action'] ?? '';
     $bank_section = in_array($action, ['add_account', 'edit_account', 'delete_account_row'], true);
@@ -160,6 +162,10 @@ require __DIR__ . '/includes/header.php';
 
 <div class="page-title">Settings</div>
 <p class="page-sub">Manage your account, security and preferences.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to change settings', 'Your profile, banks, passwords and preferences live here after you log in.') ?>
+<?php require __DIR__ . '/includes/footer.php'; exit; endif; ?>
 
 <!-- ============ ACCOUNT ============ -->
 <div class="sec-head" id="account"><?= lucide('user-round-pen') ?><h2>Account</h2></div>

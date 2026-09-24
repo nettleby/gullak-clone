@@ -1,10 +1,11 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
-$uid   = (int) $user['id'];
+$uid   = $user ? (int) $user['id'] : 0;
 $rates = get_rates();
-$hold  = get_holdings($uid);
+$hold  = $uid ? get_holdings($uid)
+    : ['gold' => ['grams' => 0, 'invested' => 0], 'silver' => ['grams' => 0, 'invested' => 0]];
 $metal = ($_GET['metal'] ?? ($_POST['metal'] ?? 'gold')) === 'silver' ? 'silver' : 'gold';
 
 /* nothing to sell at all? */
@@ -22,6 +23,9 @@ if ($hold['gold']['grams'] <= 0 && $hold['silver']['grams'] <= 0) {
         <a class="btn btn-sm" href="<?= url('buy.php?metal=gold') ?>"><?= lucide('plus') ?> Buy gold</a>
       </div>
     </div>
+    <?php if (!$user): ?>
+    <?= guest_cta('Log in to sell metal', 'Selling credits your wallet instantly — log in to cash out your holdings.') ?>
+    <?php endif; ?>
     <?php
     require __DIR__ . '/includes/footer.php';
     exit;
@@ -34,6 +38,8 @@ $rate     = $rates[$metal]['sell'];
 $gramsMax = $hold[$metal]['grams'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_login();   // selling is an action — guests log in first (returns here after)
+    $uid = (int) $user['id'];
     csrf_check();
     $grams = dec_to_scaled($_POST['grams'] ?? '', 4) / 10000;      // exact 4-decimal grams
     $res   = execute_sell(db(), $uid, $metal, $grams);

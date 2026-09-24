@@ -1,9 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
 /* filter tabs: all | gold | silver | in | out | sip */
 $valid = ['all', 'gold', 'silver', 'in', 'out', 'sip'];
@@ -51,6 +51,10 @@ $lastDay = '';
 ?>
 <div class="page-title">History</div>
 <p class="page-sub">Every buy, sell, SIP run and money movement.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to view your history', 'Your complete transaction ledger appears here after you log in.') ?>
+<?php require __DIR__ . '/includes/footer.php'; exit; endif; ?>
 
 <div class="search-wrap">
   <?= lucide('search') ?>

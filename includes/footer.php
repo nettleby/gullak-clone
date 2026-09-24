@@ -1,5 +1,5 @@
 </main>
-<?php if (!empty($active_tab) && $u): ?>
+<?php if (!empty($active_tab)): ?>
   <nav class="tabbar">
     <?php foreach ($tabs as $key => $t): ?>
       <a class="tab <?= ($active_tab === $key) ? 'active' : '' ?>" href="<?= url($t['url']) ?>">

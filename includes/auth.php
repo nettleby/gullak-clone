@@ -32,14 +32,39 @@ function require_login(): array
 {
     if (!is_logged_in() || !current_user()) {
         // Preserve destination so a genuine-expiry detour returns here after login.
-        $rel = ltrim((string) ($_SERVER['REQUEST_URI'] ?? ''), '/');
-        $base = ltrim((string) (defined('BASE_URL') ? BASE_URL : ''), '/');
-        if ($base !== '' && str_starts_with($rel, $base)) $rel = ltrim(substr($rel, strlen($base)), '/');
-        if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')) $rel = 'index.php';
-        header('Location: ' . url('login.php?next=' . urlencode($rel)));
+        header('Location: ' . url('login.php?next=' . urlencode(current_path())));
         exit;
     }
     return current_user();
+}
+
+/** App-relative path of the current request (for ?next= return addresses). */
+function current_path(): string
+{
+    $rel = ltrim((string) ($_SERVER['REQUEST_URI'] ?? ''), '/');
+    $base = ltrim((string) (defined('BASE_URL') ? BASE_URL : ''), '/');
+    if ($base !== '' && str_starts_with($rel, $base)) $rel = ltrim(substr($rel, strlen($base)), '/');
+    if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')) $rel = 'index.php';
+    return $rel;
+}
+
+/**
+ * Standard guest gate: login card shown in place of gated content.
+ * Never redirects — the user keeps exploring; actions still go through
+ * require_login() with a ?next= return.
+ */
+function guest_cta(string $title, string $sub): string
+{
+    $next = current_path();
+    return '<div class="card center" style="padding:28px 18px">'
+        . '<div class="empty" style="padding:0 0 6px"><div class="ico">' . lucide('lock') . '</div>'
+        . '<h3>' . e($title) . '</h3><p>' . e($sub) . '</p></div>'
+        . '<div class="btn-row mt14">'
+        . '<a class="btn btn-sm" style="width:100%" href="' . e(url('login.php?next=' . urlencode($next))) . '">'
+        . lucide('log-in') . ' Log in</a>'
+        . '<a class="btn btn-ghost btn-sm" style="width:100%" href="' . e(url('register.php')) . '">'
+        . 'Create account</a>'
+        . '</div></div>';
 }
 
 function attempt_login(string $email, string $password): bool

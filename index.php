@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo     = db();
-$uid     = (int) $user['id'];
+$uid     = $user ? (int) $user['id'] : 0;
 $rates   = get_rates();
-$hold    = get_holdings($uid);
-$balance = wallet_balance($uid);
+$hold    = $uid ? get_holdings($uid)
+    : ['gold' => ['grams' => 0, 'invested' => 0], 'silver' => ['grams' => 0, 'invested' => 0]];
+$balance = $uid ? wallet_balance($uid) : 0;
 
 /* portfolio value at current sell rates */
 $goldVal  = $hold['gold']['grams']   * ($rates['gold']['sell']   ?? 0);
@@ -56,21 +57,22 @@ $hasChart = !empty($chart['gold']['labels']) || !empty($chart['silver']['labels'
 /* active SIPs (banner) */
 $st = $pdo->prepare('SELECT * FROM sip_plans WHERE user_id = ? AND status = "active" ORDER BY next_run LIMIT 3');
 $st->execute([$uid]);
-$activeSips = $st->fetchAll();
+$activeSips = $uid ? $st->fetchAll() : [];
 
 /* recent activity */
 $st = $pdo->prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 5');
 $st->execute([$uid]);
-$recent = $st->fetchAll();
+$recent = $uid ? $st->fetchAll() : [];
 
 $active_tab = 'home';
 $page_title  = 'Home';
 $load_chart  = true;
 require __DIR__ . '/includes/header.php';
 
-$firstName = explode(' ', trim($user['name']))[0];
+$firstName = $user ? explode(' ', trim($user['name']))[0] : null;
 ?>
 
+<?php if ($user): ?>
 <div class="page-title-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
   <div>
     <h1 class="page-title" style="margin-top:0">Hi, <?= e($firstName) ?></h1>
@@ -80,8 +82,17 @@ $firstName = explode(' ', trim($user['name']))[0];
     <?= lucide('bell') ?>
   </a>
 </div>
+<?php else: ?>
+<div class="page-title-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+  <div>
+    <h1 class="page-title" style="margin-top:0">Digital gold &amp; silver</h1>
+    <p class="page-sub" style="margin-bottom:0"><?= e(date('l, d M Y')) ?> · live rates below — log in to invest</p>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- portfolio hero -->
+<?php if ($user): ?>
 <div class="hero">
   <button class="eye-btn" data-toggle-balance aria-label="Show or hide balances"><?= lucide('eye') ?></button>
   <div class="hero-label"><?= lucide('gem', 'ic-14') ?> Total portfolio value</div>
@@ -100,6 +111,9 @@ $firstName = explode(' ', trim($user['name']))[0];
     <a class="btn btn-sm" style="background:rgba(0,0,0,.18);box-shadow:none" href="<?= url('sell.php') ?>"><?= lucide('arrow-up-right') ?> Sell</a>
   </div>
 </div>
+<?php else: ?>
+<?= guest_cta('Start saving in digital gold', 'Track live rates for free — log in to buy your first grams from ₹10.') ?>
+<?php endif; ?>
 
 <!-- active SIP banner -->
 <?php foreach ($activeSips as $sp): ?>

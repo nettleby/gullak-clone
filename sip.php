@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
-$user = require_login();
+$user = current_user();
 
 $pdo = db();
-$uid = (int) $user['id'];
+$uid = $user ? (int) $user['id'] : 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_login();   // SIP actions need an account — guests log in first (returns here after)
+    $uid = (int) $user['id'];
     csrf_check();
     $action = $_POST['action'] ?? '';
     $sid    = (int) ($_POST['sip_id'] ?? 0);
@@ -59,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 /* my plans + per-plan execution stats */
 $st = $pdo->prepare('SELECT * FROM sip_plans WHERE user_id = ? ORDER BY id DESC');
 $st->execute([$uid]);
-$plans = $st->fetchAll();
+$plans = $uid ? $st->fetchAll() : [];
 
 $stats = [];
 if ($plans) {
@@ -78,7 +80,7 @@ if ($plans) {
 $st = $pdo->prepare('SELECT l.*, p.metal FROM sip_logs l JOIN sip_plans p ON p.id = l.sip_id
                       WHERE l.user_id = ? ORDER BY l.id DESC LIMIT 10');
 $st->execute([$uid]);
-$logs = $st->fetchAll();
+$logs = $uid ? $st->fetchAll() : [];
 
 /* overview numbers */
 $active   = array_filter($plans, fn($p) => $p['status'] === 'active');
@@ -95,6 +97,10 @@ require __DIR__ . '/includes/header.php';
 
 <div class="page-title">Gullak SIP</div>
 <p class="page-sub">Automate your savings — we buy metal for you on schedule.</p>
+
+<?php if (!$user): ?>
+<?= guest_cta('Log in to start a SIP', 'Build an auto-invest plan in a minute — daily, weekly or monthly from ₹10.') ?>
+<?php endif; ?>
 
 <!-- overview stats -->
 <div class="mini-grid">
@@ -239,7 +245,7 @@ require __DIR__ . '/includes/header.php';
         <span class="seg-btn"><?= lucide('zap') ?> Start today<small>runs on your next visit</small></span>
       </label>
     </div>
-    <p class="field-hint">Instalments are debited from your wallet (currently <?= money(wallet_balance($uid)) ?>).</p>
+    <p class="field-hint"><?php if ($user): ?>Instalments are debited from your wallet (currently <?= money(wallet_balance($uid)) ?>).<?php else: ?>Instalments are debited from your wallet — <a href="<?= url('login.php?next=' . urlencode('sip.php')) ?>">log in</a> to start your first plan.<?php endif; ?></p>
 
     <div class="mt14">
       <button class="btn" type="submit"><?= lucide('repeat') ?> Start SIP</button>
