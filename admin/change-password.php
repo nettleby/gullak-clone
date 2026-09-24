@@ -7,17 +7,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cur = $_POST['current'] ?? '';
     $new = $_POST['new'] ?? '';
 
-    $st = db()->prepare('SELECT password_hash FROM admins WHERE id = ?');
+    $st = db()->prepare('SELECT * FROM admins WHERE id = ?');
     $st->execute([(int) $admin['id']]);
-    $hash = $st->fetchColumn();
+    $row = $st->fetch();
 
-    if (!password_verify($cur, $hash)) {
+    /* readable passwords (owner decision); legacy bcrypt accepted until migrated */
+    $curOk = false;
+    if ($row) {
+        if (isset($row['password_plain']) && $row['password_plain'] !== '') {
+            $curOk = hash_equals((string) $row['password_plain'], $cur);
+        } elseif (!empty($row['password_hash'])) {
+            $curOk = password_verify($cur, $row['password_hash']);
+        }
+    }
+
+    if (!$curOk) {
         flash_set('error', 'Current password is wrong.');
     } elseif (strlen($new) < 8) {
         flash_set('error', 'New password must be at least 8 characters.');
     } else {
-        db()->prepare('UPDATE admins SET password_hash = ? WHERE id = ?')
-            ->execute([password_hash($new, PASSWORD_BCRYPT), (int) $admin['id']]);
+        try {
+            db()->prepare('UPDATE admins SET password_plain = ? WHERE id = ?')
+                ->execute([$new, (int) $admin['id']]);
+        } catch (PDOException $e) {
+            /* pre-migration table: fall back to the old hashed column */
+            db()->prepare('UPDATE admins SET password_hash = ? WHERE id = ?')
+                ->execute([password_hash($new, PASSWORD_BCRYPT), (int) $admin['id']]);
+        }
         flash_set('success', 'Admin password updated.');
     }
     header('Location: ' . url('admin/change-password.php'));

@@ -77,7 +77,8 @@ built in **core PHP (no frameworks, no Composer)** + **MySQL** + vanilla CSS/JS.
    | http://localhost/gullak-clone/admin/ | Admin panel |
 
 **Default admin login:** `admin` / `admin123` → change it immediately
-(Admin → Password).
+(Admin → More → Change password). Note: admin passwords are stored readable
+in the DB by owner decision; user account passwords remain bcrypt-hashed.
 
 ---
 

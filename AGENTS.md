@@ -102,7 +102,9 @@
   `SIP_PROJ_RATE_PCT 10` (illustrative only, does not affect returns)
 * Test ICICI UAT credentials committed in config — dev only, rotate before sharing/live.
   `DISPLAY_ENV=true` dev only (leaks traces). `DB root/''/gullak` XAMPP default.
-  Default admin `admin / admin123` — change immediately.
+  Default admin `admin / admin123` — change immediately. Admin passwords are
+  stored READABLE (`admins.password_plain`, owner decision — see
+  `db/20260923-1530-plaintext_admin_passwords.sql`); user passwords stay bcrypt.
 
 ## 5. DB truth (from `db/schema.sql`)
 
@@ -113,7 +115,7 @@
   `sip_logs (success|failed)`, `bank_accounts`, `withdrawals (pending|approved|rejected)`,
   `payments (order_id UNIQUE, created|paid|failed)`, `admins`,
   `settings (admin-editable spreads, config-constant fallback)`.
-* Seeds: admin bcrypt + `gold 11250/10980`, `silver 138/128` + price_history rows.
+* Seeds: admin `admin123` plaintext + `gold 11250/10980`, `silver 138/128` + price_history rows.
 
 ## 6. README policy
 

@@ -98,7 +98,9 @@ function admin_view_toggle(): string
 function admin_csrf_check(): void
 {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;
-    if (!hash_equals($_SESSION['admin_csrf'] ?? '', (string) ($_POST['csrf'] ?? ''))) {
+    /* empty session token must fail — otherwise a token-less POST would pass on a fresh session */
+    if (empty($_SESSION['admin_csrf'])
+        || !hash_equals($_SESSION['admin_csrf'], (string) ($_POST['csrf'] ?? ''))) {
         http_response_code(419);
         exit('Session expired — go back and try again.');
     }

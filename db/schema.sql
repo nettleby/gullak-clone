@@ -173,12 +173,14 @@ CREATE TABLE IF NOT EXISTS payments (
 ) ENGINE=InnoDB;
 
 -- ---------- admins (separate from users) ----------
+-- NOTE: admin passwords are stored READABLE by owner decision (see
+-- db/20260923-1530-plaintext_admin_passwords.sql). User passwords stay hashed.
 CREATE TABLE IF NOT EXISTS admins (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  username      VARCHAR(50)  NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username       VARCHAR(50)  NOT NULL UNIQUE,
+  password_plain VARCHAR(255) NOT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ---------- platform settings (admin-editable key-value store) ----------
@@ -193,9 +195,9 @@ CREATE TABLE IF NOT EXISTS settings (
 --  Seed data
 -- ============================================================
 
--- Default admin: admin / admin123   (bcrypt hash) — CHANGE IT after login!
-INSERT INTO admins (username, password_hash)
-VALUES ('admin', '$2y$12$UKqyHF6q/Pq2X9HRv3/6F.HGErMXb2zrSQlNlhV4kHTO09QC13evq');
+-- Default admin: admin / admin123   (READABLE password — change it after login!)
+INSERT INTO admins (username, password_plain)
+VALUES ('admin', 'admin123');
 
 -- Initial metal rates (₹ per gram). Adjust from the admin panel anytime.
 INSERT INTO metal_prices (metal, buy_rate, sell_rate, updated_by) VALUES

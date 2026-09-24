@@ -40,7 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st = db()->prepare('SELECT * FROM admins WHERE username = ?');
         $st->execute([$old['username']]);
         $a = $st->fetch();
-        if ($a && password_verify($password, $a['password_hash'])) {
+        /* readable passwords (owner decision); legacy bcrypt accepted until migrated */
+        $ok = false;
+        if ($a) {
+            if (isset($a['password_plain']) && $a['password_plain'] !== '') {
+                $ok = hash_equals((string) $a['password_plain'], $password);
+            } elseif (!empty($a['password_hash'])) {
+                $ok = password_verify($password, $a['password_hash']);
+            }
+        }
+        if ($a && $ok) {
             session_regenerate_id(true);
             $_SESSION['admin_id'] = (int) $a['id'];
             header('Location: ' . url($next !== '' ? $next : 'admin/index.php'));
