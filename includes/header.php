@@ -58,7 +58,7 @@ if ($u) {
       </a>
       <a class="wallet-chip" href="<?= url('wallet.php') ?>">
         <?= lucide('wallet', 'ic-sm') ?>
-        <span class="wallet-chip-amount"><?= money(wallet_balance((int) $u['id']), 0) ?></span>
+        <span class="wallet-chip-amount"><?= money(wallet_balance((int) $u['id']), 2) ?></span>
       </a>
     </div>
   </header>

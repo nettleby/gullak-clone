@@ -32,20 +32,26 @@ foreach (array_keys($chg) as $m) {
     }
 }
 
-/* gold price history for the chart (last 40 points) */
-$chartLabels = $chartBuy = $chartSell = [];
-$st = $pdo->query('SELECT buy_rate, sell_rate, recorded_at FROM price_history
-                    WHERE metal = "gold" ORDER BY recorded_at DESC, id DESC LIMIT 40');
-foreach ($st->fetchAll() as $r) {
-    array_unshift($chartLabels, date('d M', strtotime($r['recorded_at'])));
-    array_unshift($chartBuy,    (float) $r['buy_rate']);
-    array_unshift($chartSell,   (float) $r['sell_rate']);
+/* price history for the chart (last 40 points per metal) */
+$chart = [];
+foreach (['gold', 'silver'] as $m) {
+    $labels = $buy = $sell = [];
+    $st = $pdo->prepare('SELECT buy_rate, sell_rate, recorded_at FROM price_history
+                         WHERE metal = ? ORDER BY recorded_at DESC, id DESC LIMIT 40');
+    $st->execute([$m]);
+    foreach ($st->fetchAll() as $r) {
+        array_unshift($labels, date('d M', strtotime($r['recorded_at'])));
+        array_unshift($buy,    (float) $r['buy_rate']);
+        array_unshift($sell,   (float) $r['sell_rate']);
+    }
+    if ($labels) { // append current rate so the chart never lags
+        $labels[] = 'Now';
+        $buy[]    = $rates[$m]['buy']  ?? end($buy);
+        $sell[]   = $rates[$m]['sell'] ?? end($sell);
+    }
+    $chart[$m] = ['labels' => $labels, 'buy' => $buy, 'sell' => $sell];
 }
-if ($chartLabels) { // append current rate so the chart never lags
-    $chartLabels[] = 'Now';
-    $chartBuy[]    = $rates['gold']['buy']  ?? end($chartBuy);
-    $chartSell[]   = $rates['gold']['sell'] ?? end($chartSell);
-}
+$hasChart = !empty($chart['gold']['labels']) || !empty($chart['silver']['labels']);
 
 /* active SIPs (banner) */
 $st = $pdo->prepare('SELECT * FROM sip_plans WHERE user_id = ? AND status = "active" ORDER BY next_run LIMIT 3');
@@ -173,13 +179,23 @@ $firstName = explode(' ', trim($user['name']))[0];
 </div>
 <p class="muted small" style="margin:-8px 2px 14px">Rates are set by the platform · updated <?= e(dt_ist($rates['gold']['updated_at'] ?? null)) ?></p>
 
-<!-- gold price chart -->
+<!-- price trend (gold/silver tabs, one chart) -->
+<?php if ($hasChart): ?>
 <div class="card">
-  <div class="card-title">Gold price trend (₹/gram)</div>
+  <div class="card-title"><span id="chart-metal-name">Gold</span> price trend (₹/gram)</div>
+  <div class="metal-switch" style="margin-bottom:12px" role="tablist" aria-label="Metal price chart">
+    <button type="button" class="metal-pill active-gold" data-chart-metal="gold" role="tab" aria-selected="true">
+      <?= lucide('gem') ?> Gold <span class="sub"><?= money($rates['gold']['buy'] ?? 0) ?>/g</span>
+    </button>
+    <button type="button" class="metal-pill" data-chart-metal="silver" role="tab" aria-selected="false">
+      <?= lucide('coins') ?> Silver <span class="sub"><?= money($rates['silver']['buy'] ?? 0) ?>/g</span>
+    </button>
+  </div>
   <div class="chart-box">
     <canvas id="priceChart"></canvas>
   </div>
 </div>
+<?php endif; ?>
 
 <!-- recent activity -->
 <div class="card">
@@ -218,26 +234,33 @@ $firstName = explode(' ', trim($user['name']))[0];
   <?php endif; ?>
 </div>
 
-<?php if ($chartLabels): ?>
+<?php if ($hasChart): ?>
 <script>
 window.addEventListener('load', function () {
   if (typeof Chart === 'undefined') return;
-  new Chart(document.getElementById('priceChart'), {
+  var DATA = {
+    gold:   { name: 'Gold',   labels: <?= json_encode($chart['gold']['labels']) ?>,
+              buy: <?= json_encode($chart['gold']['buy']) ?>, sell: <?= json_encode($chart['gold']['sell']) ?> },
+    silver: { name: 'Silver', labels: <?= json_encode($chart['silver']['labels']) ?>,
+              buy: <?= json_encode($chart['silver']['buy']) ?>, sell: <?= json_encode($chart['silver']['sell']) ?> }
+  };
+  function datasetsFor(m) {
+    return [
+      {
+        label: 'Buy rate', data: DATA[m].buy,
+        borderColor: m === 'gold' ? '#D97706' : '#64748B',
+        backgroundColor: m === 'gold' ? 'rgba(245,158,11,.14)' : 'rgba(100,116,139,.14)',
+        fill: true, tension: .35, pointRadius: 2, borderWidth: 2
+      },
+      {
+        label: 'Sell rate', data: DATA[m].sell,
+        borderColor: '#9CA3AF', borderDash: [5, 4], fill: false, tension: .35, pointRadius: 2, borderWidth: 1.5
+      }
+    ];
+  }
+  var chart = new Chart(document.getElementById('priceChart'), {
     type: 'line',
-    data: {
-      labels: <?= json_encode($chartLabels) ?>,
-      datasets: [
-        {
-          label: 'Buy rate', data: <?= json_encode($chartBuy) ?>,
-          borderColor: '#D97706', backgroundColor: 'rgba(245,158,11,.14)',
-          fill: true, tension: .35, pointRadius: 2, borderWidth: 2
-        },
-        {
-          label: 'Sell rate', data: <?= json_encode($chartSell) ?>,
-          borderColor: '#9CA3AF', borderDash: [5, 4], fill: false, tension: .35, pointRadius: 2, borderWidth: 1.5
-        }
-      ]
-    },
+    data: { labels: DATA.gold.labels, datasets: datasetsFor('gold') },
     options: {
       maintainAspectRatio: false,
       plugins: { legend: { labels: { boxWidth: 10, font: { family: 'Nunito', weight: '700', size: 11 } } } },
@@ -246,6 +269,23 @@ window.addEventListener('load', function () {
         x: { ticks: { font: { size: 10 }, maxTicksLimit: 6 } }
       }
     }
+  });
+  var nameEl = document.getElementById('chart-metal-name');
+  document.querySelectorAll('[data-chart-metal]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var m = btn.getAttribute('data-chart-metal');
+      if (!DATA[m] || !DATA[m].labels.length) return;
+      document.querySelectorAll('[data-chart-metal]').forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('active-gold', on && m === 'gold');
+        b.classList.toggle('active-silver', on && m === 'silver');
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (nameEl) nameEl.textContent = DATA[m].name;
+      chart.data.labels = DATA[m].labels;
+      chart.data.datasets = datasetsFor(m);
+      chart.update();
+    });
   });
 });
 </script>
