@@ -58,12 +58,13 @@
   (offline fallback). No emojis in UI.
 * SIP: poor-man's cron in `includes/bootstrap.php` (`run_due_sips` on every
   logged-in page load) + real cron `cron/sip-runner.php` (CLI only).
-* Rates: `RATE_SOURCE auto` = metals.dev IBJA feed via `metals_sync_rates()`
-  (1 call/sync, 10:00+16:00 IST slots, 10h gap, hard cap `RATE_MAX_CALLS_PER_DAY`
-  counted from `price_history`); auto-hook in `bootstrap.php` (any page load,
-  CLI excluded) + `cron/rates-sync.php` + admin Sync-now; `manual` = admin-set.
-  Spreads: `GOLD/SILVER_BUY/SELL_SPREAD_PCT` over market mid. State derives
-  from `metal_prices.updated_by='metals.dev'` — no new tables.
+* Rates: `RATE_SOURCE manual` currently (admin-set prices). `auto` stack is
+  STANDBY (metals.dev IBJA via `metals_sync_rates()`: 1 call/sync, 10:00+16:00
+  IST slots, 10h gap, hard cap `RATE_MAX_CALLS_PER_DAY` from `price_history`;
+  hook in `bootstrap.php` + `cron/rates-sync.php` + admin Sync-now; spreads
+  `GOLD/SILVER_BUY/SELL_SPREAD_PCT` over mid, state via
+  `updated_by='metals.dev'`). Flip one constant to re-enable pending client
+  approval.
 
 ## 3. Verified file map (from code, not README)
 

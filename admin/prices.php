@@ -129,6 +129,7 @@ $stale = RATE_SOURCE === 'auto' && (!$lastSync || time() - strtotime($lastSync) 
   <?php endif; ?>
 </div>
 
+<?php if (RATE_SOURCE === 'auto'): ?>
 <div class="card">
   <div class="card-title">Platform spread (% over/under market mid)</div>
   <?php $sp = get_spreads(); ?>
@@ -157,6 +158,7 @@ $stale = RATE_SOURCE === 'auto' && (!$lastSync || time() - strtotime($lastSync) 
   </form>
   <p class="field-hint">Applies from the next auto-sync (10:00/16:00) or Sync-now. No API call on save.</p>
 </div>
+<?php endif; ?>
 
 <div class="admin-card">
   <h2>Set metal rates (₹ per gram)</h2>

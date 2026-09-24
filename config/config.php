@@ -47,7 +47,7 @@ define('ICICI_ENABLED', true);        // set false to disable Add Money while of
  *   dashboard before sharing this project or going live.
  */
 define('METALS_API_KEY', 'KB0ZJ4ECLQTQOW6QMV9T9196QMV9T');
-define('RATE_SOURCE', 'auto');       // 'auto' = metals.dev feed, 'manual' = admin-set
+define('RATE_SOURCE', 'manual');     // 'auto' = metals.dev feed (STANDBY pending client approval), 'manual' = admin-set
 define('GOLD_BUY_SPREAD_PCT', 1.5);  // buy  = mid × (1 + pct/100)
 define('GOLD_SELL_SPREAD_PCT', 1.5); // sell = mid × (1 − pct/100)
 define('SILVER_BUY_SPREAD_PCT', 4.0);
