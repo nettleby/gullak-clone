@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
         exit;
     }
     if ($chk['status'] === 'SUC') {
-        $cr = icici_credit_wallet(db(), $uid, $txn, (string) (($chk['raw']['txnID'] ?? '') ?: ($chk['raw']['paymentID'] ?? '')));
+        $cr = icici_credit_wallet(db(), $uid, $txn, (string) (($chk['raw']['txnID'] ?? '') ?: ($chk['raw']['paymentID'] ?? '')), icici_payment_meta([], $chk['raw']));
         if ($cr['ok']) {
             flash_set('success', money($cr['amount']) . ($cr['already'] ? ' already' : '') . ' added to your wallet.');
             header('Location: ' . url('wallet.php'));
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'verif
         }
         flash_set('error', $cr['msg'] ?? 'Could not credit wallet.');
     } elseif ($chk['status'] === 'REJ') {
-        db()->prepare('UPDATE payments SET status = "failed" WHERE id = ?')->execute([$row['id']]);
+        icici_mark_failed(db(), (int) $row['id'], icici_payment_meta([], $chk['raw']));
         flash_set('error', 'Payment was declined. No money was added.');
     } else {
         flash_set('error', 'Payment is still pending at the bank. Try verifying again in a minute.');

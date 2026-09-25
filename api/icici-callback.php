@@ -113,13 +113,13 @@ if (window.lucide) try { lucide.createIcons(); } catch (e) {}
     exit;
 }
 
-function icici_cb_success(PDO $pdo, int $uid, string $merchantTxnNo, string $bankTxnID, ?float $knownAmount = null): void
+function icici_cb_success(PDO $pdo, int $uid, string $merchantTxnNo, string $bankTxnID, ?float $knownAmount = null, array $meta = []): void
 {
     if ($knownAmount !== null) {
         error_log('ICICI callback replay for ' . $merchantTxnNo . ' (already paid)');
         $msg = money($knownAmount) . ' already added to your wallet.';
     } else {
-        $cr = icici_credit_wallet($pdo, $uid, $merchantTxnNo, $bankTxnID);
+        $cr = icici_credit_wallet($pdo, $uid, $merchantTxnNo, $bankTxnID, $meta);
         if (!$cr['ok']) {
             error_log('ICICI credit failed for ' . $merchantTxnNo . ': ' . ($cr['msg'] ?? 'unknown'));
             icici_cb_error($uid, 'Server error while crediting. Use Verify on Add Money.', $merchantTxnNo);
@@ -176,11 +176,10 @@ if (!$hashOk) {
     // server-side status query as a second chance before failing.
 } elseif (in_array($respCode, ['000', '0000'], true)) {
     // Verified success from the bank: credit immediately (reference behavior).
-    icici_cb_success($pdo, $uid, $merchantTxnNo, $bankTxnID);
+    icici_cb_success($pdo, $uid, $merchantTxnNo, $bankTxnID, null, icici_payment_meta($post));
 } elseif ($respCode !== '') {
     // Verified non-success code: mark failed (paid is handled above, never overwritten).
-    $pdo->prepare('UPDATE payments SET status = "failed" WHERE id = ? AND status = "created"')
-        ->execute([$pay['id']]);
+    icici_mark_failed($pdo, (int) $pay['id'], icici_payment_meta($post));
     icici_cb_error($uid, 'Payment was declined' . ($respDesc !== '' ? ': ' . $respDesc : '') . '. No money was added.', $merchantTxnNo);
 }
 
@@ -196,12 +195,11 @@ if (!$chk['ok']) {
 if ($chk['status'] === 'SUC') {
     $raw = is_array($chk['raw']) ? $chk['raw'] : [];
     $finalTxn = $bankTxnID !== '' ? $bankTxnID : (string) (($raw['txnID'] ?? '') ?: ($raw['paymentID'] ?? ''));
-    icici_cb_success($pdo, $uid, $merchantTxnNo, $finalTxn);
+    icici_cb_success($pdo, $uid, $merchantTxnNo, $finalTxn, null, icici_payment_meta($post, $chk['raw']));
 }
 
 if ($chk['status'] === 'REJ') {
-    $pdo->prepare('UPDATE payments SET status = "failed" WHERE id = ? AND status = "created"')
-        ->execute([$pay['id']]);
+    icici_mark_failed($pdo, (int) $pay['id'], icici_payment_meta($post, $chk['raw']));
     icici_cb_error($uid, 'Payment was declined. No money was added.', $merchantTxnNo);
 }
 

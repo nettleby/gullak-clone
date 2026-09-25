@@ -13,11 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare('UPDATE users SET is_active = 1 - is_active WHERE id = ?')->execute([$id]);
         flash_set('success', 'User status toggled.');
     } elseif ($action === 'reset_password') {
-        $newPass = 'gullak-' . bin2hex(random_bytes(4));   // e.g. gullak-1a2b3c4d
-        $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-            ->execute([password_hash($newPass, PASSWORD_BCRYPT), $id]);
-        flash_set('success', 'Temporary password for this user: ' . $newPass
-            . ' — share it securely; it is not shown again.');
+        $newPass = $_POST['new_password'] ?? '';
+        $confPass = $_POST['confirm_password'] ?? '';
+        if ($newPass === '' || $confPass === '') {
+            flash_set('error', 'Please enter the new password twice.');
+        } elseif (strlen($newPass) < 6) {
+            flash_set('error', 'New password must be at least 6 characters.');
+        } elseif ($newPass !== $confPass) {
+            flash_set('error', 'Passwords do not match.');
+        } else {
+            $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+                ->execute([password_hash($newPass, PASSWORD_BCRYPT), $id]);
+            flash_set('success', 'Password updated — share it with the user securely.');
+        }
     } elseif ($action === 'adjust_wallet') {
         $delta = dec_to_scaled($_POST['delta'] ?? '', 2) / 100;        // exact 2-decimal ₹
         $note  = trim($_POST['note'] ?? '');
@@ -100,11 +108,28 @@ require __DIR__ . '/includes/header.php';
         <?= $u['is_active'] ? 'Disable' : 'Enable' ?>
       </button>
     </form>
-    <form method="post" style="width:100%" data-confirm="Generate a new random password for this user?"><?= admin_csrf_field() ?>
-      <input type="hidden" name="action" value="reset_password">
-      <button class="btn btn-ghost btn-sm" type="submit" style="width:100%">Reset password</button>
-    </form>
   </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Set new password</div>
+  <form method="post" data-confirm="Set a new password for this user?">
+    <?= admin_csrf_field() ?>
+    <input type="hidden" name="action" value="reset_password">
+    <label class="field-label" for="pw-new">New password (min 6 chars)</label>
+    <div class="pw-wrap">
+      <input class="field" type="password" id="pw-new" name="new_password" required minlength="6"
+             placeholder="••••••••" autocomplete="new-password">
+      <button class="pw-eye" type="button" data-toggle-pw="pw-new" aria-label="Show password"><?= lucide('eye') ?></button>
+    </div>
+    <label class="field-label" for="pw-conf">Confirm new password</label>
+    <div class="pw-wrap">
+      <input class="field" type="password" id="pw-conf" name="confirm_password" required
+             placeholder="Repeat password" autocomplete="new-password">
+      <button class="pw-eye" type="button" data-toggle-pw="pw-conf" aria-label="Show password"><?= lucide('eye') ?></button>
+    </div>
+    <div class="mt14"><button class="btn btn-sm" type="submit" style="width:100%">Set password</button></div>
+  </form>
 </div>
 
 <div class="card">

@@ -165,6 +165,15 @@ CREATE TABLE IF NOT EXISTS payments (
   amount     DECIMAL(12,2) NOT NULL,
   status     ENUM('created','paid','failed') NOT NULL DEFAULT 'created',
   payment_id VARCHAR(40)  NULL,
+  payment_mode VARCHAR(12)  NULL,   -- CARD | NB | UPI | WALLET (bank echo)
+  payment_sub_inst VARCHAR(64) NULL,-- bank name / DC / CC / VPA type
+  card_network VARCHAR(12)  NULL,   -- VISA / MASTERCARD / RUPAY …
+  masked_card VARCHAR(32)   NULL,   -- masked PAN / paymentInstId
+  bank_resp_code VARCHAR(8) NULL,   -- bank responseCode
+  bank_resp_desc VARCHAR(128) NULL, -- bank respDescription
+  bank_txn_time VARCHAR(14) NULL,   -- bank paymentDateTime (YYYYMMDDHHMISS)
+  raw_callback MEDIUMTEXT    NULL,  -- exact return-POST JSON
+  raw_status MEDIUMTEXT      NULL,  -- exact status-query JSON
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   paid_at    TIMESTAMP NULL,

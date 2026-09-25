@@ -797,7 +797,62 @@ function icici_verify_callback_hash(array $post): bool
  * Looks up payments by (order_id, user_id), flips created→paid once.
  * Returns ['ok'=>true,'already'=>bool,'amount'=>float] or ['ok'=>false,'msg'=>..].
  */
-function icici_credit_wallet(PDO $pdo, int $uid, string $merchantTxnNo, string $bankTxnID): array
+/**
+ * Build the audit-trail meta for a payments row from a bank payload.
+ * $post = return-POST fields (or [] when only a status query exists);
+ * $statusRaw = decoded status-query array (or null). All values sanitized
+ * and truncated to column widths; empty becomes NULL (columns are nullable).
+ */
+function icici_payment_meta(array $post, $statusRaw = null): array
+{
+    $str = function ($v, int $len) {
+        $v = trim((string) ($v ?? ''));
+        return $v === '' ? null : mb_substr($v, 0, $len);
+    };
+    $txnTime = preg_replace('/\D/', '', (string) ($post['paymentDateTime'] ?? ''));
+    return [
+        'payment_mode'     => $str($post['paymentMode'] ?? null, 12),
+        'payment_sub_inst' => $str($post['paymentSubInstType'] ?? null, 64),
+        'card_network'     => $str($post['cardNetwork'] ?? null, 12),
+        'masked_card'      => $str($post['paymentInstId'] ?? ($post['maskedCardNo'] ?? null), 32),
+        'bank_resp_code'   => $str($post['responseCode'] ?? null, 8),
+        'bank_resp_desc'   => $str($post['respDescription'] ?? ($post['respDesc'] ?? null), 128),
+        'bank_txn_time'    => ($txnTime !== '' ? substr($txnTime, 0, 14) : null),
+        'raw_callback'     => $post ? json_encode($post, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+        'raw_status'       => is_array($statusRaw)
+            ? json_encode($statusRaw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+    ];
+}
+
+/** Bind the 9 meta values in column order for UPDATE statements. */
+function icici_meta_params(array $meta): array
+{
+    return [
+        $meta['payment_mode'] ?? null, $meta['payment_sub_inst'] ?? null,
+        $meta['card_network'] ?? null, $meta['masked_card'] ?? null,
+        $meta['bank_resp_code'] ?? null, $meta['bank_resp_desc'] ?? null,
+        $meta['bank_txn_time'] ?? null, $meta['raw_callback'] ?? null,
+        $meta['raw_status'] ?? null,
+    ];
+}
+
+const ICICI_META_SET = 'payment_mode = ?, payment_sub_inst = ?, card_network = ?,
+        masked_card = ?, bank_resp_code = ?, bank_resp_desc = ?, bank_txn_time = ?,
+        raw_callback = ?, raw_status = ?';
+
+/**
+ * Mark a created order failed, retaining the bank's reason + raw payload.
+ * No-op (0 rows) unless still created — failed is terminal, never overwrites paid.
+ */
+function icici_mark_failed(PDO $pdo, int $payId, array $meta): void
+{
+    $params = icici_meta_params($meta);
+    $params[] = $payId;
+    $pdo->prepare('UPDATE payments SET status = "failed", ' . ICICI_META_SET . '
+                    WHERE id = ? AND status = "created"')->execute($params);
+}
+
+function icici_credit_wallet(PDO $pdo, int $uid, string $merchantTxnNo, string $bankTxnID, array $meta = []): array
 {
     $st = $pdo->prepare('SELECT * FROM payments WHERE order_id = ? AND user_id = ?');
     $st->execute([$merchantTxnNo, $uid]);
@@ -809,9 +864,10 @@ function icici_credit_wallet(PDO $pdo, int $uid, string $merchantTxnNo, string $
     $opened = false;
     if (!$pdo->inTransaction()) { $pdo->beginTransaction(); $opened = true; }
     try {
-        $st = $pdo->prepare('UPDATE payments SET status = "paid", payment_id = ?, paid_at = NOW()
-                              WHERE id = ? AND status = "created"');
-        $st->execute([$bankTxnID !== '' ? $bankTxnID : null, $pay['id']]);
+        $params = array_merge([$bankTxnID !== '' ? $bankTxnID : null], icici_meta_params($meta), [$pay['id']]);
+        $st = $pdo->prepare('UPDATE payments SET status = "paid", payment_id = ?, paid_at = NOW(), '
+            . ICICI_META_SET . ' WHERE id = ? AND status = "created"');
+        $st->execute($params);
         if ($st->rowCount() !== 1) {
             throw new RuntimeException('Payment already processed.');
         }

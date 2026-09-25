@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$st = $pdo->query('SELECT w.*, u.name, u.email, b.bank_name, b.holder_name, b.account_number, b.ifsc
+$st = $pdo->query('SELECT w.*, u.name, u.email, u.phone, b.bank_name, b.holder_name, b.account_number, b.ifsc
                    FROM withdrawals w
                    JOIN users u ON u.id = w.user_id
                    JOIN bank_accounts b ON b.id = w.bank_account_id
@@ -93,6 +93,8 @@ require __DIR__ . '/includes/header.php';
         </div>
         <span class="badge badge-warning">pending</span>
       </div>
+      <div class="kv"><span class="k">Email</span><span class="v"><?= e($w['email']) ?></span></div>
+      <div class="kv"><span class="k">Contact</span><span class="v">+91 <?= e($w['phone']) ?></span></div>
       <div class="kv"><span class="k">Bank</span><span class="v"><?= e($w['bank_name']) ?></span></div>
       <div class="kv"><span class="k">Account</span><span class="v"><?= e($w['holder_name']) ?> ···<?= e(substr($w['account_number'], -4)) ?></span></div>
       <div class="kv"><span class="k">IFSC</span><span class="v mono"><?= e($w['ifsc']) ?></span></div>
@@ -117,7 +119,8 @@ require __DIR__ . '/includes/header.php';
       <tr>
         <td class="muted"><?= (int) $w['id'] ?></td>
         <td><a href="<?= url('admin/user-view.php?id=' . (int) $w['user_id']) ?>"><?= e($w['name']) ?></a>
-          <div class="muted small"><?= e($w['email']) ?></div></td>
+          <div class="muted small"><?= e($w['email']) ?></div>
+          <div class="muted small">+91 <?= e($w['phone']) ?></div></td>
         <td class="num"><b><?= money($w['amount']) ?></b></td>
         <td><?= e($w['bank_name']) ?><div class="muted small"><?= e($w['holder_name']) ?> · <?= e($w['account_number']) ?> · <?= e($w['ifsc']) ?></div></td>
         <td class="muted"><?= e(dt_ist($w['created_at'])) ?></td>
@@ -158,6 +161,7 @@ require __DIR__ . '/includes/header.php';
           <div class="li-title"><?= money($w['amount']) ?> · <?= e($w['name']) ?>
             <span class="badge <?= $w['status'] === 'approved' ? 'badge-success' : 'badge-danger' ?>"><?= e($w['status']) ?></span></div>
           <div class="li-sub"><?= e($w['admin_note'] ?: '—') ?> · <?= e(dt_ist($w['processed_at'])) ?></div>
+          <div class="li-sub"><?= e($w['email']) ?> · +91 <?= e($w['phone']) ?></div>
         </div>
       </div>
       <?php endforeach; ?>
@@ -169,7 +173,7 @@ require __DIR__ . '/includes/header.php';
       <?php foreach ($done as $w): ?>
       <tr>
         <td class="muted"><?= (int) $w['id'] ?></td>
-        <td><?= e($w['name']) ?></td>
+        <td><?= e($w['name']) ?><div class="muted small"><?= e($w['email']) ?></div><div class="muted small">+91 <?= e($w['phone']) ?></div></td>
         <td class="num"><?= money($w['amount']) ?></td>
         <td><span class="badge <?= $w['status'] === 'approved' ? 'badge-success' : 'badge-danger' ?>"><?= e($w['status']) ?></span></td>
         <td class="muted"><?= e($w['admin_note'] ?: '—') ?></td>

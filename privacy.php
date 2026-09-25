@@ -14,8 +14,11 @@ require __DIR__ . '/includes/header.php';
   <p class="copy-note">
     To run your account we store the name, email address and mobile number you register with, a bcrypt hash of
     your password (never the password itself), your wallet balance and metal holdings, the bank accounts you
-    choose to save, and a complete ledger of every transaction. Payment processing is handled by ICICI Bank; we
-    keep only the order identifier and amounts, never your card or UPI credentials.
+    choose to save, and a complete ledger of every transaction. Wallet top-ups run through ICICI Bank; for each
+    attempt we keep our order reference, the amount and outcome, the bank's transaction reference, the payment
+    method used (card / net-banking / UPI, issuing bank or network where the bank shares it), the bank's response
+    code and message, and the full transaction record for dispute resolution. We never store your full card number,
+    CVV or UPI PIN — those stay with the bank.
   </p>
 </div>
 

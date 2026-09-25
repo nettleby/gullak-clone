@@ -34,6 +34,9 @@
   final truth, idempotent credit via
   `UPDATE payments ... WHERE status='created'` + `rowCount` gate
   (`icici_credit_wallet()`). Manual Verify button covers missed callbacks.
+  Every attempt keeps a full audit trail on `payments` (mode, bank, masked
+  card, bank codes, timestamps + `raw_callback`/`raw_status` JSON via
+  `icici_payment_meta()` on both success and failure writes).
   Status queries hit `.../command?reqType=JSON` with the universal
   sorted-params hash (`icici_sorted_hash()`); official doc host
   `pgpayuat.icicibank.com` is fallback (keep `bank.in` primary — proven live).
